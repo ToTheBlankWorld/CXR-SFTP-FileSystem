@@ -1,0 +1,49 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                          String         @id @default(cuid())
+  name                        String?
+  email                       String?        @unique
+  emailVerified               DateTime?
+  image                       String?
+  password                    String?
+  role                        UserRole       @default(USER)
+  createdAt                   DateTime       @default(now())
+  updatedAt                   DateTime       @updatedAt
+  sessionVersion              Int            @default(1)
+  vanityId                    String?        @unique
+  urlId                       String         @unique
+  uploadToken                 String         @unique
+  shortenedUrls               ShortenedUrl[]
+}
+
+model ShortenedUrl {
+  id        String   @id @default(cuid())
+  shortCode String   @unique
+  targetUrl String
+  clicks    Int      @default(0)
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Config {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}

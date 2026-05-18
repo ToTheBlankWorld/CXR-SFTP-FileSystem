@@ -1,0 +1,397 @@
+'use client'
+
+import { useCallback, useEffect, useState } from 'react'
+
+import Link from 'next/link'
+
+import type {
+  FileType,
+  PaginationInfo,
+  SortOption,
+} from '@/types/components/file'
+import { ChevronRight, FolderPlus, Home, RefreshCw, Upload } from 'lucide-react'
+
+import { FileCard } from '@/components/dashboard/file-card'
+import { FileCardSkeleton } from '@/components/dashboard/file-grid/file-card-skeleton'
+import { FileFilters } from '@/components/dashboard/file-grid/file-filters'
+import {
+  FileGridPagination,
+  PaginationSkeleton,
+} from '@/components/dashboard/file-grid/pagination'
+import { SearchInput } from '@/components/dashboard/file-grid/search-input'
+import { FolderCard } from '@/components/dashboard/folder-card'
+import { EmptyPlaceholder } from '@/components/shared/empty-placeholder'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+
+import { useFileFilters } from '@/hooks/use-file-filters'
+import { useToast } from '@/hooks/use-toast'
+
+export function FileGrid() {
+  const [files, setFiles] = useState<FileType[]>([])
+  const [folders, setFolders] = useState<{ id: string; name: string; fileCount: number }[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [fileTypes] = useState<string[]>([])
+  const [paginationInfo, setPaginationInfo] = useState<PaginationInfo>({
+    total: 0,
+    pageCount: 0,
+    page: 1,
+    limit: 24,
+  })
+
+  const [currentPath, setCurrentPath] = useState<string>('/')
+  const [folderPath, setFolderPath] = useState<{ id: string; name: string }[]>([])
+  const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+
+  const { toast } = useToast()
+
+  const {
+    filters,
+    setSearch,
+    setTypes,
+    setVisibility,
+    setSortBy,
+    setPage,
+  } = useFileFilters()
+
+  const navigateToFolder = useCallback(
+    (folderId: string, folderName: string) => {
+      setCurrentPath(folderId)
+      setFolderPath((prev) => [...prev, { id: folderId, name: folderName }])
+      setPage(1)
+    },
+    [setPage]
+  )
+
+  const navigateToBreadcrumb = useCallback(
+    (index: number) => {
+      if (index === -1) {
+        setCurrentPath('/')
+        setFolderPath([])
+      } else {
+        setCurrentPath(folderPath[index].id)
+        setFolderPath(folderPath.slice(0, index + 1))
+      }
+      setPage(1)
+    },
+    [folderPath, setPage]
+  )
+
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) return
+    try {
+      const res = await fetch('/api/folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newFolderName.trim(),
+          parentId: currentPath === '/' ? null : currentPath,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Failed to create folder')
+      }
+      const created = await res.json()
+      setFolders((prev) => [...prev, { id: created.data.id, name: created.data.name, fileCount: 0 }])
+      setNewFolderName('')
+      setIsCreateFolderOpen(false)
+      toast({ title: 'Folder created', description: `"${created.data.name}" created` })
+    } catch (e) {
+      toast({
+        title: 'Failed to create folder',
+        description: e instanceof Error ? e.message : 'Unknown error',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const handleDeleteFolder = useCallback((folderId: string) => {
+    setFolders((prev) => prev.filter((f) => f.id !== folderId))
+  }, [])
+
+  const handleRenameFolder = useCallback(
+    (folderId: string, newName: string) => {
+      setFolders((prev) =>
+        prev.map((f) => (f.id === folderId ? { ...f, name: newName } : f))
+      )
+    },
+    []
+  )
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setIsLoading(true)
+
+        const folderRes = await fetch(`/api/folders?parentId=${encodeURIComponent(currentPath)}`)
+        const folderData = folderRes.ok ? await folderRes.json() : null
+        setFolders(Array.isArray(folderData?.data) ? folderData.data : [])
+
+        const fileParams = new URLSearchParams({
+          page: filters.page.toString(),
+          limit: filters.limit.toString(),
+          search: filters.search,
+          sortBy: filters.sortBy,
+          path: currentPath,
+          ...(filters.types.length > 0 && { types: filters.types.join(',') }),
+        })
+
+        const fileRes = await fetch(`/api/files?${fileParams}`)
+        if (!fileRes.ok) throw new Error('Failed to fetch files')
+        const apiResult = await fileRes.json()
+
+        setFiles(Array.isArray(apiResult.data) ? apiResult.data : [])
+        if (apiResult.pagination) {
+          setPaginationInfo({
+            total: apiResult.pagination.total || 0,
+            pageCount: apiResult.pagination.pageCount || 0,
+            page: filters.page,
+            limit: filters.limit,
+          })
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [filters, currentPath])
+
+  const handleDelete = (fileId: string) => {
+    setFiles((files) => files.filter((file) => file.id !== fileId))
+    setPaginationInfo((prev) => ({
+      ...prev,
+      total: prev.total - 1,
+      pageCount: Math.ceil((prev.total - 1) / prev.limit),
+    }))
+  }
+
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 8 }, (_, i) => (
+              <FileCardSkeleton key={`skeleton-${i}`} />
+            ))}
+          </div>
+          <PaginationSkeleton />
+        </>
+      )
+    }
+
+    if (folders.length === 0 && files.length === 0) {
+      const hasActiveFilters = filters.search || filters.types.length > 0
+
+      return (
+        <EmptyPlaceholder>
+          <EmptyPlaceholder.Icon name="file" />
+          {hasActiveFilters ? (
+            <>
+              <EmptyPlaceholder.Title>No files found</EmptyPlaceholder.Title>
+              <EmptyPlaceholder.Description>
+                Try adjusting your filters to find files.
+              </EmptyPlaceholder.Description>
+            </>
+          ) : (
+            <>
+              <EmptyPlaceholder.Title>
+                {currentPath !== '/' ? 'This folder is empty' : 'No files'}
+              </EmptyPlaceholder.Title>
+              <EmptyPlaceholder.Description>
+                {currentPath !== '/'
+                  ? 'Upload files here or create a new folder.'
+                  : 'Upload your first file or create a folder to get started.'}
+              </EmptyPlaceholder.Description>
+            </>
+          )}
+        </EmptyPlaceholder>
+      )
+    }
+
+    return (
+      <>
+        {folders.length > 0 && (
+          <>
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+              Folders
+            </h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-8">
+              {folders.map((folder) => (
+                <FolderCard
+                  key={folder.id}
+                  folder={{
+                    id: folder.id,
+                    name: folder.name,
+                    userId: '',
+                    parentId: currentPath === '/' ? null : currentPath,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    fileCount: folder.fileCount,
+                  }}
+                  onNavigate={navigateToFolder}
+                  onDelete={handleDeleteFolder}
+                  onRename={handleRenameFolder}
+                />
+              ))}
+            </div>
+          </>
+        )}
+        {files.length > 0 && (
+          <>
+            {folders.length > 0 && (
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mt-2">
+                Files
+              </h2>
+            )}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {files.map((file) => (
+                <FileCard key={file.id} file={file} onDelete={handleDelete} />
+              ))}
+            </div>
+          </>
+        )}
+        <FileGridPagination paginationInfo={paginationInfo} setPage={setPage} />
+      </>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="relative rounded-2xl bg-white/10 dark:bg-black/10 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-lg shadow-black/5 dark:shadow-black/20">
+        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/10 via-transparent to-black/5 dark:from-white/5 dark:via-transparent dark:to-black/10" />
+        <div className="relative">
+          <div className="p-6 pb-4 flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold">Your Files</h1>
+              <p className="text-muted-foreground mt-1">
+                Browse files on your SFTP server
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsCreateFolderOpen(true)}
+              >
+                <FolderPlus className="mr-2 h-4 w-4" />
+                New Folder
+              </Button>
+              <Button variant="default" size="sm" asChild>
+                <Link href={`/dashboard/upload?path=${encodeURIComponent(currentPath)}`}>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Upload
+                </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                onClick={() => window.location.reload()}
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {folderPath.length > 0 && (
+            <div className="px-6 pb-2">
+              <nav className="flex items-center gap-1 text-sm text-muted-foreground">
+                <button
+                  onClick={() => navigateToBreadcrumb(-1)}
+                  className="hover:text-foreground transition-colors flex items-center gap-1"
+                >
+                  <Home className="h-3.5 w-3.5" />
+                  Home
+                </button>
+                {folderPath.map((folder, i) => (
+                  <span key={folder.id} className="flex items-center gap-1">
+                    <ChevronRight className="h-3.5 w-3.5" />
+                    {i === folderPath.length - 1 ? (
+                      <span className="text-foreground font-medium">
+                        {folder.name}
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => navigateToBreadcrumb(i)}
+                        className="hover:text-foreground transition-colors"
+                      >
+                        {folder.name}
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </nav>
+            </div>
+          )}
+
+          <div className="px-6 pb-6">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <SearchInput onSearch={setSearch} initialValue={filters.search} />
+              <FileFilters
+                sortBy={filters.sortBy as SortOption}
+                onSortChange={setSortBy}
+                selectedTypes={filters.types}
+                onTypesChange={setTypes}
+                fileTypes={fileTypes}
+                date={undefined}
+                onDateChange={() => {}}
+                visibility={filters.visibility}
+                onVisibilityChange={setVisibility}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+      {renderContent()}
+
+      <Dialog open={isCreateFolderOpen} onOpenChange={setIsCreateFolderOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Folder</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="folder-name">Folder name</Label>
+              <Input
+                id="folder-name"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateFolder()}
+                placeholder="Enter folder name"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsCreateFolderOpen(false)
+                  setNewFolderName('')
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateFolder}
+                disabled={!newFolderName.trim()}
+              >
+                Create
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}

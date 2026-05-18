@@ -1,0 +1,232 @@
+import { UserResponse, UserSchema } from '@/types/dto/user'
+import { hash } from 'bcryptjs'
+import { v4 as uuidv4 } from 'uuid'
+
+import {
+  HTTP_STATUS,
+  apiError,
+  apiResponse,
+  paginatedResponse,
+} from '@/lib/api/response'
+import { requireAdmin } from '@/lib/auth/api-auth'
+import { prisma } from '@/lib/database/prisma'
+import { loggers } from '@/lib/logger'
+
+const logger = loggers.users
+
+export async function GET(req: Request) {
+  try {
+    const { response } = await requireAdmin()
+    if (response) return response
+
+    const { searchParams } = new URL(req.url)
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '25')
+    const skip = (page - 1) * limit
+
+    const total = await prisma.user.count()
+
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        role: true,
+        urlId: true,
+        vanityId: true,
+        _count: {
+          select: {
+            shortenedUrls: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      skip,
+      take: limit,
+    })
+
+    const pagination = {
+      total,
+      pageCount: Math.ceil(total / limit),
+      page,
+      limit,
+    }
+
+    return paginatedResponse<UserResponse[]>(users, pagination)
+  } catch (error) {
+    logger.error('Error fetching users', error as Error)
+    return apiError('Internal server error', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const { response } = await requireAdmin()
+    if (response) return response
+
+    const json = await req.json()
+
+    const result = UserSchema.safeParse(json)
+    if (!result.success) {
+      return apiError(result.error.issues[0].message, HTTP_STATUS.BAD_REQUEST)
+    }
+
+    const body = result.data
+
+    const exists = await prisma.user.findUnique({
+      where: { email: body.email },
+    })
+
+    if (exists) {
+      return apiError('User already exists', HTTP_STATUS.BAD_REQUEST)
+    }
+
+    const generateUrlId = () =>
+      Array.from({ length: 5 }, () => {
+        const chars =
+          '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+        return chars.charAt(Math.floor(Math.random() * chars.length))
+      }).join('')
+
+    let urlId = generateUrlId()
+    let isUnique = false
+    while (!isUnique) {
+      const existing = await prisma.user.findUnique({
+        where: { urlId },
+      })
+      if (!existing) {
+        isUnique = true
+      } else {
+        urlId = generateUrlId()
+      }
+    }
+
+    const user = await prisma.user.create({
+      data: {
+        email: body.email,
+        name: body.name,
+        password: body.password ? await hash(body.password, 10) : undefined,
+        role: body.role,
+        urlId,
+        uploadToken: uuidv4(),
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        role: true,
+        urlId: true,
+        vanityId: true,
+        _count: {
+          select: {
+            shortenedUrls: true,
+          },
+        },
+      },
+    })
+
+    return apiResponse<UserResponse>(user)
+  } catch (error) {
+    logger.error('Error creating user', error as Error)
+    return apiError('Internal server error', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+  }
+}
+
+export async function PUT(req: Request) {
+  try {
+    const { response } = await requireAdmin()
+    if (response) return response
+
+    const json = await req.json()
+
+    const result = UserSchema.safeParse(json)
+    if (!result.success) {
+      return apiError(result.error.issues[0].message, HTTP_STATUS.BAD_REQUEST)
+    }
+
+    const body = result.data
+
+    if (!body.id) {
+      return apiError('User ID is required', HTTP_STATUS.BAD_REQUEST)
+    }
+
+    const existingUser = await prisma.user.findUnique({
+      where: { id: body.id },
+    })
+
+    if (!existingUser) {
+      return apiError('User not found', HTTP_STATUS.NOT_FOUND)
+    }
+
+    if (body.urlId) {
+      const existingUrlId = await prisma.user.findUnique({
+        where: { urlId: body.urlId },
+      })
+      if (existingUrlId && existingUrlId.id !== body.id) {
+        return apiError('URL ID is already in use', HTTP_STATUS.BAD_REQUEST)
+      }
+    }
+
+    if (body.vanityId !== undefined && body.vanityId !== null) {
+      const existingVanity = await prisma.user.findUnique({
+        where: { vanityId: body.vanityId },
+      })
+      if (existingVanity && existingVanity.id !== body.id) {
+        return apiError(
+          'This vanity URL is already taken',
+          HTTP_STATUS.BAD_REQUEST
+        )
+      }
+
+      const existingVanityAsUrlId = await prisma.user.findUnique({
+        where: { urlId: body.vanityId },
+      })
+      if (existingVanityAsUrlId) {
+        return apiError(
+          'This vanity URL conflicts with an existing URL ID',
+          HTTP_STATUS.BAD_REQUEST
+        )
+      }
+    }
+
+    const updateData = {
+      updatedAt: new Date(),
+      ...(body.name !== undefined && { name: body.name }),
+      ...(body.email !== undefined && { email: body.email }),
+      ...(body.role !== undefined && { role: body.role }),
+      ...(body.password && { password: await hash(body.password, 10) }),
+      ...(body.urlId && { urlId: body.urlId }),
+      ...(body.vanityId !== undefined && {
+        vanityId: body.vanityId || null,
+      }),
+    }
+
+    const user = await prisma.user.update({
+      where: { id: body.id },
+      data: updateData,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        role: true,
+        urlId: true,
+        vanityId: true,
+        _count: {
+          select: {
+            shortenedUrls: true,
+          },
+        },
+      },
+    })
+
+    return apiResponse<UserResponse>(user)
+  } catch (error) {
+    logger.error('Error updating user', error as Error)
+    return apiError('Internal server error', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+  }
+}
