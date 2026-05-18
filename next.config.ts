@@ -4,11 +4,11 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   experimental: {
     reactCompiler: true,
+    serverActions: {
+      bodySizeLimit: '500mb',
+    },
   },
   serverExternalPackages: ['ssh2', 'ssh2-sftp-client'],
-  serverActions: {
-    bodySizeLimit: '500mb',
-  },
   outputFileTracingIncludes: {
     '/api/**/*': ['./node_modules/**/*.wasm', './node_modules/**/*.proto'],
   },
