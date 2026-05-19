@@ -93,6 +93,8 @@ export async function POST(req: Request) {
     const fileName = subpath ? `${subpath}/${uploadedFile.name}` : uploadedFile.name
     const remotePath = `${targetPath}/${fileName}`.replace(/\/+/g, '/')
 
+    logger.info('Uploading file to ' + remotePath)
+
     await uploadFile(buffer, remotePath)
 
     return apiResponse({

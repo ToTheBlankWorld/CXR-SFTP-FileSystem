@@ -106,10 +106,17 @@ export async function uploadFile(
   localBuffer: Buffer,
   remotePath: string
 ): Promise<void> {
+  const fullPath = resolvePath(remotePath)
+  logger.debug('Uploading to ' + fullPath)
   return withClient(async (sftp) => {
-    const fullPath = resolvePath(remotePath)
     const parentDir = fullPath.substring(0, fullPath.lastIndexOf('/'))
-    if (parentDir) await sftp.mkdir(parentDir, true)
+    if (parentDir) {
+      try {
+        await sftp.mkdir(parentDir, true)
+      } catch {
+        // dir may already exist from concurrent upload
+      }
+    }
     await sftp.put(Readable.from(localBuffer), fullPath)
   })
 }
