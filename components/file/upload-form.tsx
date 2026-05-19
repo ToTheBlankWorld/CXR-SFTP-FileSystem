@@ -323,9 +323,7 @@ export function UploadForm() {
           <FolderIcon className="h-5 w-5 text-muted-foreground shrink-0" />
           <div className="flex-1 min-w-0">
             <span className="text-sm font-medium truncate">{node.name || '(root)'}</span>
-            <span className="text-xs text-muted-foreground ml-2">
-              {node.fileCount} file{node.fileCount > 1 ? 's' : ''} · {formatSize(node.totalSize)}
-            </span>
+            <span className="text-xs text-muted-foreground ml-2">{formatSize(node.totalSize)}</span>
           </div>
         </div>
         {isExpanded && (
@@ -359,11 +357,15 @@ export function UploadForm() {
         </p>
       </div>
 
-      <div className="flex gap-2 justify-center">
-        <Button variant="outline" onClick={handleFolderSelect}>
-          <FolderIcon className="h-4 w-4 mr-2" />
-          Upload Folder
-        </Button>
+      <div
+        onClick={handleFolderSelect}
+        className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors border-border hover:border-primary/50 hover:bg-primary/5"
+      >
+        <FolderIcon className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
+        <p className="text-base font-medium">Click to select a folder</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          All files and subfolders will be included
+        </p>
         <input
           ref={folderInputRef}
           type="file"

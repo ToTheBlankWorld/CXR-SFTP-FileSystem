@@ -166,9 +166,6 @@ export function FolderCard({
               </Tooltip>
             </TooltipProvider>
           </div>
-          <div className="mt-1 flex items-center text-xs text-muted-foreground">
-            {folder.fileCount} file{folder.fileCount !== 1 ? 's' : ''}
-          </div>
         </div>
       </Card>
 
