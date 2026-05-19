@@ -1,10 +1,16 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 
 import { useSearchParams } from 'next/navigation'
 
-import { FileIcon, FolderIcon, UploadIcon, XIcon } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronRight,
+  FileIcon,
+  FolderIcon,
+  UploadIcon,
+} from 'lucide-react'
 import { useDropzone } from 'react-dropzone'
 
 import { Button } from '@/components/ui/button'
@@ -13,28 +19,110 @@ import { Progress } from '@/components/ui/progress'
 
 import { useToast } from '@/hooks/use-toast'
 
+interface TreeNode {
+  name: string
+  type: 'file' | 'folder'
+  children: TreeNode[]
+  file?: File
+  fileCount: number
+  totalSize: number
+  path: string
+}
+
+function buildTree(files: File[]): TreeNode {
+  const root: TreeNode = {
+    name: '', type: 'folder', children: [],
+    fileCount: 0, totalSize: 0, path: '',
+  }
+  for (const file of files) {
+    const relPath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
+    const parts = relPath.split('/')
+    let current = root
+    let curPath = ''
+    for (let i = 0; i < parts.length; i++) {
+      curPath = curPath ? `${curPath}/${parts[i]}` : parts[i]
+      if (i === parts.length - 1) {
+        current.children.push({
+          name: parts[i], type: 'file', children: [],
+          file, fileCount: 1, totalSize: file.size, path: curPath,
+        })
+      } else {
+        let folder = current.children.find(
+          (c) => c.type === 'folder' && c.name === parts[i]
+        )
+        if (!folder) {
+          folder = {
+            name: parts[i], type: 'folder', children: [],
+            fileCount: 0, totalSize: 0, path: curPath,
+          }
+          current.children.push(folder)
+        }
+        current = folder
+      }
+    }
+  }
+  function calc(node: TreeNode): void {
+    if (node.type === 'file') return
+    node.fileCount = 0; node.totalSize = 0
+    for (const child of node.children) {
+      calc(child)
+      node.fileCount += child.fileCount
+      node.totalSize += child.totalSize
+    }
+  }
+  calc(root)
+  return root
+}
+
+function getSelectedFiles(
+  node: TreeNode,
+  deselectedPaths: Set<string>
+): File[] {
+  if (node.type === 'folder' && deselectedPaths.has(node.path)) return []
+  if (node.type === 'file') return node.file ? [node.file] : []
+  const result: File[] = []
+  for (const child of node.children) result.push(...getSelectedFiles(child, deselectedPaths))
+  return result
+}
+
+function countSelected(
+  node: TreeNode,
+  deselectedPaths: Set<string>
+): number {
+  if (node.type === 'folder' && deselectedPaths.has(node.path)) return 0
+  if (node.type === 'file') return 1
+  let count = 0
+  for (const child of node.children) count += countSelected(child, deselectedPaths)
+  return count
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / 1024 / 1024).toFixed(1) + ' MB'
+}
+
 export function UploadForm() {
   const { toast } = useToast()
   const searchParams = useSearchParams()
   const uploadPath = searchParams.get('path') || '/'
 
   const [files, setFiles] = useState<File[]>([])
-  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set())
+  const [deselectedPaths, setDeselectedPaths] = useState<Set<string>>(new Set())
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState<Record<string, number>>({})
   const [overallProgress, setOverallProgress] = useState<{ uploaded: number; total: number; failed: number } | null>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
 
+  const tree = useMemo(() => files.length > 0 ? buildTree(files) : null, [files])
+
+  const selectedCount = useMemo(
+    () => tree ? countSelected(tree, deselectedPaths) : 0,
+    [tree, deselectedPaths]
+  )
+
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    setFiles((prev) => {
-      const newFiles = [...prev, ...acceptedFiles]
-      setSelectedIndices((prevSel) => {
-        const next = new Set(prevSel)
-        for (let i = prev.length; i < newFiles.length; i++) next.add(i)
-        return next
-      })
-      return newFiles
-    })
+    setFiles((prev) => [...prev, ...acceptedFiles])
   }, [])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -48,41 +136,44 @@ export function UploadForm() {
 
   const onFolderFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || [])
+    if (selectedFiles.length === 0) return
     setFiles((prev) => {
       const newFiles = [...prev, ...selectedFiles]
-      setSelectedIndices((prevSel) => {
-        const next = new Set(prevSel)
-        for (let i = prev.length; i < newFiles.length; i++) next.add(i)
-        return next
-      })
       return newFiles
+    })
+    setExpandedPaths((prev) => {
+      const next = new Set(prev)
+      for (const f of selectedFiles) {
+        const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath || ''
+        const firstSlash = rel.indexOf('/')
+        if (firstSlash > 0) next.add(rel.substring(0, firstSlash))
+      }
+      return next
     })
     e.target.value = ''
   }
 
-  const toggleFile = (index: number) => {
-    setSelectedIndices((prev) => {
+  const toggleFolder = (path: string) => {
+    setDeselectedPaths((prev) => {
       const next = new Set(prev)
-      if (next.has(index)) next.delete(index)
-      else next.add(index)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
       return next
     })
   }
 
-  const removeFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index))
-    setSelectedIndices((prev) => {
-      const next = new Set<number>()
-      for (const i of prev) {
-        if (i < index) next.add(i)
-        else if (i > index) next.add(i - 1)
-      }
+  const toggleExpand = (path: string) => {
+    setExpandedPaths((prev) => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
       return next
     })
   }
 
   const uploadFiles = async () => {
-    const targetFiles = files.filter((_, i) => selectedIndices.has(i))
+    if (!tree) return
+    const targetFiles = getSelectedFiles(tree, deselectedPaths)
     if (targetFiles.length === 0) return
 
     setUploading(true)
@@ -150,7 +241,8 @@ export function UploadForm() {
     setFiles([])
     setProgress({})
     setOverallProgress(null)
-    setSelectedIndices(new Set())
+    setDeselectedPaths(new Set())
+    setExpandedPaths(new Set())
 
     if (failed > 0) {
       toast({
@@ -166,7 +258,84 @@ export function UploadForm() {
     }
   }
 
-  const selectedCount = selectedIndices.size
+  function renderNode(node: TreeNode, depth: number = 0): React.ReactNode {
+    if (node.type === 'file') {
+      const displayName = node.path
+      const pct = progress[displayName]
+      const isDone = pct === 100
+      return (
+        <div
+          key={node.path}
+          className="flex items-center gap-2 py-1.5 px-2 rounded"
+          style={{ paddingLeft: `${depth * 20 + 8}px` }}
+        >
+          <div className="w-4 shrink-0" />
+          {uploading && isDone ? (
+            <span className="text-green-500 text-xs font-bold w-4 text-center shrink-0">✓</span>
+          ) : (
+            <FileIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-sm truncate">{node.name}</span>
+              <span className="text-xs text-muted-foreground shrink-0">{formatSize(node.totalSize)}</span>
+            </div>
+            {pct !== undefined && pct < 100 && (
+              <Progress value={pct} className="h-1 mt-0.5" />
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    const isExpanded = expandedPaths.has(node.path)
+    const isDeselected = deselectedPaths.has(node.path)
+
+    return (
+      <div key={node.path}>
+        <div
+          className={`flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/50 cursor-pointer ${
+            isDeselected ? 'opacity-40' : ''
+          }`}
+          style={{ paddingLeft: `${depth * 20 + 8}px` }}
+        >
+          {!uploading && (
+            <input
+              type="checkbox"
+              checked={!isDeselected}
+              onChange={() => toggleFolder(node.path)}
+              className="shrink-0 w-4 h-4 accent-primary cursor-pointer"
+            />
+          )}
+          {uploading && (
+            <div className="w-4 shrink-0" />
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); toggleExpand(node.path) }}
+            className="shrink-0 p-0.5 hover:bg-muted rounded"
+          >
+            {isExpanded ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
+          <FolderIcon className="h-5 w-5 text-muted-foreground shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="text-sm font-medium truncate">{node.name || '(root)'}</span>
+            <span className="text-xs text-muted-foreground ml-2">
+              {node.fileCount} file{node.fileCount > 1 ? 's' : ''} · {formatSize(node.totalSize)}
+            </span>
+          </div>
+        </div>
+        {isExpanded && (
+          <div>
+            {node.children.map((child) => renderNode(child, depth + 1))}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -205,10 +374,10 @@ export function UploadForm() {
         />
       </div>
 
-      {files.length > 0 && (
+      {tree && (
         <Card className="p-4 space-y-3">
           <h3 className="font-medium">
-            {files.length} file{files.length > 1 ? 's' : ''} selected
+            {tree.fileCount} file{tree.fileCount > 1 ? 's' : ''} selected
             {!uploading && (
               <span className="text-sm text-muted-foreground ml-2">
                 ({selectedCount} to upload)
@@ -238,50 +407,8 @@ export function UploadForm() {
             </div>
           )}
 
-          <div className="max-h-64 overflow-y-auto space-y-1">
-            {files.map((file, index) => {
-              const displayName = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
-              const isSelected = selectedIndices.has(index)
-              const isDone = progress[displayName] === 100
-              return (
-                <div
-                  key={`${file.name}-${index}-${file.size}`}
-                  className={`flex items-center gap-3 p-2 rounded-lg ${
-                    !isSelected && !uploading ? 'opacity-40' : ''
-                  } ${isDone ? 'bg-primary/10' : 'bg-muted/50'}`}
-                >
-                  {!uploading && (
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleFile(index)}
-                      className="shrink-0 w-4 h-4 accent-primary cursor-pointer"
-                    />
-                  )}
-                  {uploading && isDone && (
-                    <span className="text-green-500 text-sm font-bold w-4 text-center">✓</span>
-                  )}
-                  <FileIcon className="h-8 w-8 text-muted-foreground shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{displayName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {(file.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
-                    {progress[displayName] !== undefined && (
-                      <Progress value={progress[displayName]} className="h-1 mt-1" />
-                    )}
-                  </div>
-                  {!uploading && (
-                    <button
-                      onClick={() => removeFile(index)}
-                      className="shrink-0 p-1 hover:bg-muted rounded"
-                    >
-                      <XIcon className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-              )
-            })}
+          <div className="max-h-80 overflow-y-auto border rounded-lg p-1">
+            {tree.children.map((child) => renderNode(child))}
           </div>
 
           {!uploading ? (
