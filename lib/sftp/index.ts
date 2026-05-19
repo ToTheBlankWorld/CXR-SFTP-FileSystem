@@ -108,6 +108,8 @@ export async function uploadFile(
 ): Promise<void> {
   return withClient(async (sftp) => {
     const fullPath = resolvePath(remotePath)
+    const parentDir = fullPath.substring(0, fullPath.lastIndexOf('/'))
+    if (parentDir) await sftp.mkdir(parentDir, true)
     await sftp.put(Readable.from(localBuffer), fullPath)
   })
 }
