@@ -102,21 +102,27 @@ export async function listDir(dirPath: string = ''): Promise<SftpEntry[]> {
   })
 }
 
+async function ensureDir(sftp: Client, dir: string): Promise<void> {
+  const parts = dir.replace(/^\/+/, '').split('/')
+  let current = ''
+  for (const part of parts) {
+    current += '/' + part
+    try {
+      await sftp.mkdir(current, false)
+    } catch {
+      // dir already exists, continue
+    }
+  }
+}
+
 export async function uploadFile(
   localBuffer: Buffer,
   remotePath: string
 ): Promise<void> {
-  const fullPath = resolvePath(remotePath)
-  logger.debug('Uploading to ' + fullPath)
   return withClient(async (sftp) => {
+    const fullPath = resolvePath(remotePath)
     const parentDir = fullPath.substring(0, fullPath.lastIndexOf('/'))
-    if (parentDir) {
-      try {
-        await sftp.mkdir(parentDir, true)
-      } catch {
-        // dir may already exist from concurrent upload
-      }
-    }
+    if (parentDir) await ensureDir(sftp, parentDir)
     await sftp.put(Readable.from(localBuffer), fullPath)
   })
 }

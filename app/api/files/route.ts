@@ -20,6 +20,8 @@ export async function GET(request: Request) {
 
     let entries = await listDir(dirPath)
 
+    logger.info('listDir ' + dirPath + ' entries=' + entries.length + ' names=[' + entries.map(e => e.name).join(',') + ']')
+
     if (search) {
       const q = search.toLowerCase()
       entries = entries.filter((e) => e.name.toLowerCase().includes(q))
@@ -93,7 +95,7 @@ export async function POST(req: Request) {
     const fileName = subpath ? `${subpath}/${uploadedFile.name}` : uploadedFile.name
     const remotePath = `${targetPath}/${fileName}`.replace(/\/+/g, '/')
 
-    logger.info('Uploading file to ' + remotePath)
+    logger.info('upload targetPath=' + targetPath + ' subpath=' + subpath + ' fileName=' + uploadedFile.name + ' remotePath=' + remotePath)
 
     await uploadFile(buffer, remotePath)
 
