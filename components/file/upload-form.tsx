@@ -19,12 +19,22 @@ export function UploadForm() {
   const uploadPath = searchParams.get('path') || '/'
 
   const [files, setFiles] = useState<File[]>([])
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set())
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState<Record<string, number>>({})
+  const [overallProgress, setOverallProgress] = useState<{ uploaded: number; total: number; failed: number } | null>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    setFiles((prev) => [...prev, ...acceptedFiles])
+    setFiles((prev) => {
+      const newFiles = [...prev, ...acceptedFiles]
+      setSelectedIndices((prevSel) => {
+        const next = new Set(prevSel)
+        for (let i = prev.length; i < newFiles.length; i++) next.add(i)
+        return next
+      })
+      return newFiles
+    })
   }, [])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -38,28 +48,59 @@ export function UploadForm() {
 
   const onFolderFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || [])
-    setFiles((prev) => [...prev, ...selectedFiles])
+    setFiles((prev) => {
+      const newFiles = [...prev, ...selectedFiles]
+      setSelectedIndices((prevSel) => {
+        const next = new Set(prevSel)
+        for (let i = prev.length; i < newFiles.length; i++) next.add(i)
+        return next
+      })
+      return newFiles
+    })
     e.target.value = ''
+  }
+
+  const toggleFile = (index: number) => {
+    setSelectedIndices((prev) => {
+      const next = new Set(prev)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      return next
+    })
   }
 
   const removeFile = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index))
+    setSelectedIndices((prev) => {
+      const next = new Set<number>()
+      for (const i of prev) {
+        if (i < index) next.add(i)
+        else if (i > index) next.add(i - 1)
+      }
+      return next
+    })
   }
 
   const uploadFiles = async () => {
-    if (files.length === 0) return
+    const targetFiles = files.filter((_, i) => selectedIndices.has(i))
+    if (targetFiles.length === 0) return
 
     setUploading(true)
-    let successCount = 0
-    let failCount = 0
+    setOverallProgress({ uploaded: 0, total: targetFiles.length, failed: 0 })
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i]
-      const displayName = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
-      setProgress((prev) => ({ ...prev, [displayName]: 0 }))
+    const CONCURRENCY = 5
+    const pending = [...targetFiles]
+    let index = 0
+    let completed = 0
+    let failed = 0
 
-      let uploaded = false
-      for (let attempt = 0; attempt < 3 && !uploaded; attempt++) {
+    const uploadOne = async (): Promise<void> => {
+      while (true) {
+        const i = index++
+        if (i >= pending.length) return
+        const file = pending[i]
+        const displayName = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
+
         try {
           const formData = new FormData()
           formData.append('file', file)
@@ -93,32 +134,39 @@ export function UploadForm() {
             xhr.send(formData)
           })
 
-          uploaded = true
-          successCount++
+          completed++
         } catch {
-          if (attempt < 2) continue
-          failCount++
+          failed++
         }
+
+        setOverallProgress({ uploaded: completed, total: targetFiles.length, failed })
       }
     }
+
+    const workers = Array.from({ length: CONCURRENCY }, () => uploadOne())
+    await Promise.all(workers)
 
     setUploading(false)
     setFiles([])
     setProgress({})
+    setOverallProgress(null)
+    setSelectedIndices(new Set())
 
-    if (failCount > 0) {
+    if (failed > 0) {
       toast({
         title: 'Upload complete with errors',
-        description: `${successCount} uploaded, ${failCount} failed`,
+        description: `${completed} uploaded, ${failed} failed`,
         variant: 'destructive',
       })
     } else {
       toast({
         title: 'Upload complete',
-        description: `${successCount} file${successCount > 1 ? 's' : ''} uploaded successfully`,
+        description: `${completed} file${completed > 1 ? 's' : ''} uploaded successfully`,
       })
     }
   }
+
+  const selectedCount = selectedIndices.size
 
   return (
     <div className="space-y-6">
@@ -161,15 +209,58 @@ export function UploadForm() {
         <Card className="p-4 space-y-3">
           <h3 className="font-medium">
             {files.length} file{files.length > 1 ? 's' : ''} selected
+            {!uploading && (
+              <span className="text-sm text-muted-foreground ml-2">
+                ({selectedCount} to upload)
+              </span>
+            )}
           </h3>
+
+          {overallProgress && (
+            <div className="space-y-1">
+              <div className="flex justify-between text-sm">
+                <span>
+                  {overallProgress.uploaded + overallProgress.failed} / {overallProgress.total} files
+                  {overallProgress.failed > 0 && (
+                    <span className="text-destructive ml-1">
+                      ({overallProgress.failed} failed)
+                    </span>
+                  )}
+                </span>
+                <span>
+                  {Math.round(((overallProgress.uploaded + overallProgress.failed) / overallProgress.total) * 100)}%
+                </span>
+              </div>
+              <Progress
+                value={((overallProgress.uploaded + overallProgress.failed) / overallProgress.total) * 100}
+                className="h-2"
+              />
+            </div>
+          )}
+
           <div className="max-h-64 overflow-y-auto space-y-1">
             {files.map((file, index) => {
-      const displayName = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
+              const displayName = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
+              const isSelected = selectedIndices.has(index)
+              const isDone = progress[displayName] === 100
               return (
                 <div
                   key={`${file.name}-${index}-${file.size}`}
-                  className="flex items-center gap-3 p-2 rounded-lg bg-muted/50"
+                  className={`flex items-center gap-3 p-2 rounded-lg ${
+                    !isSelected && !uploading ? 'opacity-40' : ''
+                  } ${isDone ? 'bg-primary/10' : 'bg-muted/50'}`}
                 >
+                  {!uploading && (
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleFile(index)}
+                      className="shrink-0 w-4 h-4 accent-primary cursor-pointer"
+                    />
+                  )}
+                  {uploading && isDone && (
+                    <span className="text-green-500 text-sm font-bold w-4 text-center">✓</span>
+                  )}
                   <FileIcon className="h-8 w-8 text-muted-foreground shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{displayName}</p>
@@ -192,13 +283,21 @@ export function UploadForm() {
               )
             })}
           </div>
-          <Button
-            onClick={uploadFiles}
-            disabled={uploading}
-            className="w-full"
-          >
-            {uploading ? 'Uploading...' : `Upload ${files.length} file${files.length > 1 ? 's' : ''}`}
-          </Button>
+
+          {!uploading ? (
+            <Button
+              onClick={uploadFiles}
+              disabled={selectedCount === 0}
+              className="w-full"
+            >
+              <UploadIcon className="h-4 w-4 mr-2" />
+              Upload {selectedCount} file{selectedCount > 1 ? 's' : ''}
+            </Button>
+          ) : (
+            <div className="text-center text-sm text-muted-foreground py-2">
+              Uploading...
+            </div>
+          )}
         </Card>
       )}
     </div>

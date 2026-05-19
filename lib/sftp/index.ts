@@ -10,6 +10,9 @@ const logger = loggers.storage
 
 let cachedConfig: SftpConfig | null = null
 
+let client: Client | null = null
+let clientPromise: Promise<Client> | null = null
+
 export function getSftpConfig(): SftpConfig {
   if (cachedConfig) return cachedConfig
   cachedConfig = {
@@ -23,33 +26,45 @@ export function getSftpConfig(): SftpConfig {
   return cachedConfig
 }
 
-async function withSftp<T>(fn: (client: Client) => Promise<T>): Promise<T> {
+async function connect(): Promise<Client> {
   const config = getSftpConfig()
-  const sftp = new Client()
+  const c = new Client()
   const connectConfig: {
     host: string; port: number; username: string; password?: string;
-    privateKey?: string | Buffer; retries?: number; retry_factor?: number;
-    retry_minTimeout?: number;
+    privateKey?: string; readyTimeout?: number;
   } = {
     host: config.host,
     port: config.port,
     username: config.username,
-    retries: 3,
-    retry_factor: 2,
-    retry_minTimeout: 1000,
+    readyTimeout: 5000,
   }
-
   if (config.privateKey) {
     connectConfig.privateKey = config.privateKey
   } else if (config.password) {
     connectConfig.password = config.password
   }
+  await c.connect(connectConfig)
+  logger.info('SFTP persistent client connected')
+  return c
+}
 
-  await sftp.connect(connectConfig)
+async function getClient(): Promise<Client> {
+  if (client) return client
+  if (clientPromise) return clientPromise
+  clientPromise = connect()
+  client = await clientPromise
+  clientPromise = null
+  return client
+}
+
+async function withClient<T>(fn: (sftp: Client) => Promise<T>): Promise<T> {
   try {
-    return await fn(sftp)
-  } finally {
-    sftp.end().catch(() => {})
+    return await fn(await getClient())
+  } catch {
+    client = null
+    clientPromise = null
+    const c = await getClient()
+    return await fn(c)
   }
 }
 
@@ -68,7 +83,7 @@ function stripRoot(absPath: string): string {
 }
 
 export async function listDir(dirPath: string = ''): Promise<SftpEntry[]> {
-  return withSftp(async (sftp) => {
+  return withClient(async (sftp) => {
     const fullPath = resolvePath(dirPath)
     logger.debug('Listing SFTP directory', { fullPath })
 
@@ -91,18 +106,14 @@ export async function uploadFile(
   localBuffer: Buffer,
   remotePath: string
 ): Promise<void> {
-  return withSftp(async (sftp) => {
+  return withClient(async (sftp) => {
     const fullPath = resolvePath(remotePath)
-    logger.debug('Uploading file via SFTP', { fullPath })
-
-    const parentDir = fullPath.substring(0, fullPath.lastIndexOf('/'))
-    if (parentDir) await sftp.mkdir(parentDir, true)
     await sftp.put(Readable.from(localBuffer), fullPath)
   })
 }
 
 export async function downloadFile(remotePath: string): Promise<Buffer> {
-  return withSftp(async (sftp) => {
+  return withClient(async (sftp) => {
     const fullPath = resolvePath(remotePath)
     logger.debug('Downloading file via SFTP', { fullPath })
 
@@ -121,33 +132,13 @@ export async function getFileStream(
   remotePath: string,
   range?: { start?: number; end?: number }
 ): Promise<Readable> {
-  const sftp = new Client()
-  const config = getSftpConfig()
-  const connectConfig: {
-    host: string; port: number; username: string; password?: string;
-    privateKey?: string | Buffer;
-  } = {
-    host: config.host,
-    port: config.port,
-    username: config.username,
-  }
-
-  if (config.privateKey) {
-    connectConfig.privateKey = config.privateKey
-  } else if (config.password) {
-    connectConfig.password = config.password
-  }
-
-  await sftp.connect(connectConfig)
+  const sftp = await getClient()
   const fullPath = resolvePath(remotePath)
 
   const readStream = sftp.createReadStream(fullPath, {
     start: range?.start,
     end: range?.end,
   })
-
-  readStream.on('close', () => sftp.end().catch(() => {}))
-  readStream.on('error', () => sftp.end().catch(() => {}))
 
   return readStream as unknown as Readable
 }
@@ -156,7 +147,7 @@ export async function getFileInfo(
   remotePath: string
 ): Promise<SftpEntry | null> {
   try {
-    return await withSftp(async (sftp) => {
+    return await withClient(async (sftp) => {
       const fullPath = resolvePath(remotePath)
       const stat = await sftp.stat(fullPath)
       return {
@@ -177,7 +168,7 @@ export async function getFileInfo(
 }
 
 export async function deleteFile(remotePath: string): Promise<void> {
-  return withSftp(async (sftp) => {
+  return withClient(async (sftp) => {
     const fullPath = resolvePath(remotePath)
     logger.debug('Deleting file via SFTP', { fullPath })
     await sftp.delete(fullPath)
@@ -185,7 +176,7 @@ export async function deleteFile(remotePath: string): Promise<void> {
 }
 
 export async function deleteDir(remotePath: string): Promise<void> {
-  return withSftp(async (sftp) => {
+  return withClient(async (sftp) => {
     const fullPath = resolvePath(remotePath)
     logger.debug('Deleting directory via SFTP', { fullPath })
     await sftp.rmdir(fullPath, true)
@@ -196,7 +187,7 @@ export async function rename(
   oldPath: string,
   newPath: string
 ): Promise<void> {
-  return withSftp(async (sftp) => {
+  return withClient(async (sftp) => {
     const fullOldPath = resolvePath(oldPath)
     const fullNewPath = resolvePath(newPath)
     logger.debug('Renaming via SFTP', { from: fullOldPath, to: fullNewPath })
@@ -205,7 +196,7 @@ export async function rename(
 }
 
 export async function mkdir(dirPath: string): Promise<void> {
-  return withSftp(async (sftp) => {
+  return withClient(async (sftp) => {
     const fullPath = resolvePath(dirPath)
     logger.debug('Creating directory via SFTP', { fullPath })
     await sftp.mkdir(fullPath, true)
@@ -213,6 +204,10 @@ export async function mkdir(dirPath: string): Promise<void> {
 }
 
 export async function disconnect(): Promise<void> {
+  if (client) {
+    await client.end().catch(() => {})
+    client = null
+  }
 }
 
 export async function listAllFilesRecursive(
@@ -236,7 +231,7 @@ export async function testConnection(): Promise<{
   error?: string
 }> {
   try {
-    await withSftp(async () => {})
+    await withClient(async () => {})
     return { success: true }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Connection failed'
