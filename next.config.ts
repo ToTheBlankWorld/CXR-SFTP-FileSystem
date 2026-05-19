@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
     },
   },
   serverExternalPackages: ['ssh2', 'ssh2-sftp-client'],
+  middlewareClientMaxBodySize: '2000mb',
   outputFileTracingIncludes: {
     '/api/**/*': ['./node_modules/**/*.wasm', './node_modules/**/*.proto'],
   },

@@ -91,7 +91,7 @@ export async function POST(req: Request) {
             username: '',
             rootPath: '/',
           },
-          maxUploadSize: 100 * 1024 * 1024,
+          maxUploadSize: 500 * 1024 * 1024,
           credits: {
             showFooter: true,
           },

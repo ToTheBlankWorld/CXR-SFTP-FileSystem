@@ -30,7 +30,7 @@ export const configSchema = z.object({
         username: z.string().default(''),
         rootPath: z.string().default('/'),
       }),
-      maxUploadSize: z.number().default(100 * 1024 * 1024),
+      maxUploadSize: z.number().default(500 * 1024 * 1024),
       credits: z.object({
         showFooter: z.boolean(),
       }),
@@ -67,7 +67,7 @@ export const DEFAULT_CONFIG: FlareConfig = {
         username: '',
         rootPath: '/',
       },
-      maxUploadSize: 100 * 1024 * 1024,
+      maxUploadSize: 500 * 1024 * 1024,
       credits: {
         showFooter: true,
       },
