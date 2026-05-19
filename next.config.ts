@@ -7,9 +7,9 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: '500mb',
     },
+    middlewareClientMaxBodySize: '2000mb',
   },
   serverExternalPackages: ['ssh2', 'ssh2-sftp-client'],
-  middlewareClientMaxBodySize: '2000mb',
   outputFileTracingIncludes: {
     '/api/**/*': ['./node_modules/**/*.wasm', './node_modules/**/*.proto'],
   },
