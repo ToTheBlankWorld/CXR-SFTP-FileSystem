@@ -84,7 +84,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
-import { formatFileSize } from '@/lib/utils'
+import { formatBytes } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { sanitizeUrl } from '@/lib/utils/url'
 
@@ -1133,7 +1133,7 @@ export function UserList() {
                             </span>
                           </TableCell>
                           <TableCell className="whitespace-nowrap">
-                            {formatFileSize(file.size)}
+                            {formatBytes(file.size)}
                           </TableCell>
                           <TableCell className="whitespace-nowrap">
                             <span

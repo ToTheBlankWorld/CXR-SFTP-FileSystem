@@ -9,7 +9,6 @@ import { FileType } from '@/types/components/file'
 import {
   Clock,
   Download,
-  Eye,
   Link as LinkIcon,
   Trash2,
 } from 'lucide-react'
@@ -30,7 +29,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
-import { formatFileSize, getRelativeTime } from '@/lib/utils'
+import { formatBytes, getRelativeTime } from '@/lib/utils'
 
 import { useToast } from '@/hooks/use-toast'
 
@@ -184,18 +183,8 @@ export function FileCard({ file: initialFile, onDelete }: FileCardProps) {
             </Tooltip>
           </TooltipProvider>
           <span className="text-xs text-muted-foreground whitespace-nowrap">
-            {formatFileSize(file.size)}
+            {formatBytes(file.size)}
           </span>
-        </div>
-        <div className="mt-1 flex items-center space-x-2 text-xs text-muted-foreground">
-          <div className="flex items-center">
-            <Eye className="mr-1 h-3 w-3" />
-            {file.views}
-          </div>
-          <div className="flex items-center">
-            <Download className="mr-1 h-3 w-3" />
-            {file.downloads}
-          </div>
         </div>
       </div>
 
