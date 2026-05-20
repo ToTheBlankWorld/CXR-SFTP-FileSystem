@@ -97,11 +97,6 @@ interface User {
   email: string
   image: string | null
   role: 'ADMIN' | 'USER'
-  urlId: string
-  vanityId: string | null
-  _count: {
-    shortenedUrls: number
-  }
 }
 
 interface File {
@@ -154,10 +149,6 @@ function UserTableSkeleton() {
           <TableRow>
             <TableHead>User</TableHead>
             <TableHead>Role</TableHead>
-            <TableHead>URL ID</TableHead>
-            <TableHead>Files</TableHead>
-            <TableHead>Storage Used</TableHead>
-            <TableHead>URLs</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -486,8 +477,6 @@ export function UserList() {
       name: user.name,
       email: user.email,
       role: user.role,
-      urlId: user.urlId,
-      vanityId: user.vanityId || '',
     })
     setIsDialogOpen(true)
   }
@@ -716,10 +705,6 @@ export function UserList() {
             <TableRow>
               <TableHead>User</TableHead>
               <TableHead>Role</TableHead>
-              <TableHead>URL ID</TableHead>
-              <TableHead>Files</TableHead>
-              <TableHead>Storage Used</TableHead>
-              <TableHead>URLs</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -754,21 +739,6 @@ export function UserList() {
                     {user.role}
                   </div>
                 </TableCell>
-                <TableCell>
-                  <div className="flex flex-col gap-1">
-                    <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
-                      {user.urlId}
-                    </code>
-                    {user.vanityId && (
-                      <code className="relative rounded bg-primary/10 text-primary px-[0.3rem] py-[0.2rem] font-mono text-xs">
-                        {user.vanityId}
-                      </code>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>-</TableCell>
-                <TableCell>-</TableCell>
-                <TableCell>{user._count.shortenedUrls}</TableCell>
                 <TableCell>
                   <div className="flex justify-end gap-2">
                     <TooltipProvider>
@@ -934,52 +904,7 @@ export function UserList() {
                   </SelectContent>
                 </Select>
               </div>
-              {editingUser && (
-                <div className="space-y-2">
-                  <Label htmlFor="urlId">
-                    URL ID
-                    <span className="text-sm text-muted-foreground ml-2">
-                      (5 characters, alphanumeric)
-                    </span>
-                  </Label>
-                  <Input
-                    id="urlId"
-                    value={formData.urlId || ''}
-                    onChange={(e) => {
-                      const value = e.target.value.toUpperCase()
-                      if (/^[A-Z0-9]*$/.test(value) && value.length <= 5) {
-                        setFormData({ ...formData, urlId: value })
-                      }
-                    }}
-                    placeholder="e.g. ABC12"
-                    maxLength={5}
-                  />
-                </div>
-              )}
-              {editingUser && (
-                <div className="space-y-2">
-                  <Label htmlFor="vanityId">
-                    Vanity URL
-                    <span className="text-sm text-muted-foreground ml-2">
-                      (3-32 characters, optional)
-                    </span>
-                  </Label>
-                  <Input
-                    id="vanityId"
-                    value={formData.vanityId || ''}
-                    onChange={(e) => {
-                      const value = e.target.value
-                        .toLowerCase()
-                        .replace(/[^a-z0-9-]/g, '')
-                      if (value.length <= 32) {
-                        setFormData({ ...formData, vanityId: value })
-                      }
-                    }}
-                    placeholder="e.g. my-custom-url"
-                    maxLength={32}
-                  />
-                </div>
-              )}
+
             </div>
             <DialogFooter>
               <Button type="submit">

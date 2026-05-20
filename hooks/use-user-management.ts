@@ -10,11 +10,6 @@ export interface User {
   email: string
   image: string | null
   role: 'ADMIN' | 'USER'
-  urlId: string
-  vanityId: string | null
-  _count: {
-    shortenedUrls: number
-  }
 }
 
 export interface PaginationData {
@@ -34,8 +29,6 @@ export interface UserFormData {
   email: string
   password?: string
   role: 'ADMIN' | 'USER'
-  urlId?: string
-  vanityId?: string
 }
 
 export interface UseUserManagementOptions {

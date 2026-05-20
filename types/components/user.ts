@@ -4,8 +4,6 @@ export interface User {
   email: string | null
   image: string | null
   role: 'ADMIN' | 'USER'
-  urlId: string
-  vanityId: string | null
   fileCount: number
   shortUrlCount: number
 }

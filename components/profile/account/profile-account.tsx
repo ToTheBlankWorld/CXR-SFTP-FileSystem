@@ -17,8 +17,6 @@ import { useToast } from '@/hooks/use-toast'
 export function ProfileAccount({ user, onUpdate }: ProfileAccountProps) {
   const { update: updateSession } = useSession()
   const [isLoading, setIsLoading] = useState(false)
-  const [vanityId, setVanityId] = useState(user.vanityId || '')
-  const [vanityError, setVanityError] = useState<string | null>(null)
   const { toast } = useToast()
   const router = useRouter()
 
@@ -198,119 +196,6 @@ export function ProfileAccount({ user, onUpdate }: ProfileAccountProps) {
         </div>
       </div>
 
-      <div className="rounded-lg border p-4 mt-6">
-        <div className="space-y-4">
-          <div className="space-y-0.5">
-            <Label htmlFor="vanity-url">Vanity URL</Label>
-            <p className="text-sm text-muted-foreground">
-              Set a custom URL path identifier instead of the default ID.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <Input
-                id="vanity-url"
-                value={vanityId}
-                onChange={(e) => {
-                  const value = e.target.value
-                    .toLowerCase()
-                    .replace(/[^a-z0-9-]/g, '')
-                  setVanityId(value)
-                  setVanityError(null)
-                }}
-                placeholder={`e.g. ${user.name?.toLowerCase().replace(/[^a-z0-9-]/g, '-') || 'my-name'}`}
-                maxLength={32}
-                disabled={isLoading}
-              />
-              {vanityError && (
-                <p className="text-sm text-destructive mt-1">{vanityError}</p>
-              )}
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isLoading || vanityId === (user.vanityId || '')}
-              onClick={async () => {
-                setIsLoading(true)
-                setVanityError(null)
-                try {
-                  const newVanityId = vanityId.trim() || null
-                  const response = await fetch('/api/profile', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ vanityId: newVanityId }),
-                  })
-                  if (!response.ok) {
-                    const data = await response.json()
-                    setVanityError(data.error || 'Failed to update vanity URL')
-                    return
-                  }
-                  router.refresh()
-                  onUpdate()
-                  toast({
-                    title: 'Success',
-                    description: newVanityId
-                      ? 'Vanity URL updated successfully'
-                      : 'Vanity URL removed',
-                  })
-                } catch (error) {
-                  setVanityError(
-                    error instanceof Error
-                      ? error.message
-                      : 'Failed to update vanity URL'
-                  )
-                } finally {
-                  setIsLoading(false)
-                }
-              }}
-            >
-              {isLoading ? 'Saving...' : 'Save'}
-            </Button>
-            {user.vanityId && (
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={isLoading}
-                onClick={async () => {
-                  setIsLoading(true)
-                  setVanityError(null)
-                  try {
-                    const response = await fetch('/api/profile', {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ vanityId: null }),
-                    })
-                    if (!response.ok) {
-                      const data = await response.json()
-                      setVanityError(
-                        data.error || 'Failed to remove vanity URL'
-                      )
-                      return
-                    }
-                    setVanityId('')
-                    router.refresh()
-                    onUpdate()
-                    toast({
-                      title: 'Success',
-                      description: 'Vanity URL removed',
-                    })
-                  } catch (error) {
-                    setVanityError(
-                      error instanceof Error
-                        ? error.message
-                        : 'Failed to remove vanity URL'
-                    )
-                  } finally {
-                    setIsLoading(false)
-                  }
-                }}
-              >
-                Clear
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
     </>
   )
 }

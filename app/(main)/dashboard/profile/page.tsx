@@ -24,11 +24,6 @@ export default async function ProfilePage() {
       email: true,
       image: true,
       role: true,
-      urlId: true,
-      vanityId: true,
-      _count: {
-        select: { shortenedUrls: true },
-      },
     },
   })
 
@@ -63,10 +58,8 @@ export default async function ProfilePage() {
               email: user.email,
               image: user.image,
               role: user.role,
-              urlId: user.urlId,
-              vanityId: user.vanityId,
               fileCount: 0,
-              shortUrlCount: user._count.shortenedUrls,
+              shortUrlCount: 0,
             }}
             isAdmin={user.role === 'ADMIN'}
           />
