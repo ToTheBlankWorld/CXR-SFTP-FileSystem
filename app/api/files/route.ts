@@ -2,6 +2,7 @@ import { listDir, uploadFile, deleteFile, rename } from '@/lib/sftp'
 import { getMimeType } from '@/lib/sftp/mime'
 import { HTTP_STATUS, apiError, apiResponse, paginatedResponse } from '@/lib/api/response'
 import { requireAuth } from '@/lib/auth/api-auth'
+import { prisma } from '@/lib/database/prisma'
 import { loggers } from '@/lib/logger'
 
 const logger = loggers.files
@@ -100,6 +101,25 @@ export async function POST(req: Request) {
 
     await uploadFile(buffer, remotePath)
 
+    const urlPath = `/api/files/serve?path=${encodeURIComponent(remotePath)}`
+    await prisma.file.upsert({
+      where: { path: remotePath },
+      update: { size: uploadedFile.size, name: uploadedFile.name },
+      create: {
+        path: remotePath,
+        name: uploadedFile.name,
+        urlPath,
+        mimeType: uploadedFile.type || 'application/octet-stream',
+        size: uploadedFile.size,
+        visibility: 'PUBLIC',
+        userId: auth.user!.id,
+        isOcrProcessed: false,
+        isPaste: false,
+        views: 0,
+        downloads: 0,
+      },
+    })
+
     return apiResponse({
       url: `/api/files/serve?path=${encodeURIComponent(remotePath)}`,
       name: uploadedFile.name,
@@ -124,7 +144,15 @@ export async function DELETE(req: Request) {
       return apiError('File path is required', HTTP_STATUS.BAD_REQUEST)
     }
 
+    if (auth.user?.role !== 'ADMIN') {
+      const file = await prisma.file.findUnique({ where: { path: filePath } })
+      if (!file || file.userId !== auth.user.id) {
+        return apiError('You can only delete files you uploaded', HTTP_STATUS.FORBIDDEN)
+      }
+    }
+
     await deleteFile(filePath)
+    await prisma.file.deleteMany({ where: { path: filePath } })
     return apiResponse({ success: true })
   } catch (error) {
     logger.error('File delete error', error as Error)

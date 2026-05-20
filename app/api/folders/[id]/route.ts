@@ -1,6 +1,7 @@
 import { deleteDir, rename } from '@/lib/sftp'
 import { HTTP_STATUS, apiError, apiResponse } from '@/lib/api/response'
 import { requireAuth } from '@/lib/auth/api-auth'
+import { prisma } from '@/lib/database/prisma'
 import { loggers } from '@/lib/logger'
 
 const logger = loggers.files
@@ -53,7 +54,18 @@ export async function DELETE(
     const { id } = await params
     const folderPath = decodeURIComponent(id)
 
+    if (auth.user?.role !== 'ADMIN') {
+      const files = await prisma.file.findMany({
+        where: { path: { startsWith: folderPath } },
+        select: { userId: true },
+      })
+      if (files.length > 0 && files.some((f) => f.userId !== auth.user.id)) {
+        return apiError('Folder contains files from other users', HTTP_STATUS.FORBIDDEN)
+      }
+    }
+
     await deleteDir(folderPath)
+    await prisma.file.deleteMany({ where: { path: { startsWith: folderPath } } })
 
     return apiResponse({ success: true })
   } catch (error) {

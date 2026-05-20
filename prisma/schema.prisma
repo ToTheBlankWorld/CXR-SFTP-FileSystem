@@ -22,6 +22,47 @@ model User {
   urlId                       String         @unique
   uploadToken                 String         @unique
   shortenedUrls               ShortenedUrl[]
+  files                       File[]
+  folders                     Folder[]
+}
+
+model File {
+  id              String         @id @default(cuid())
+  name            String
+  urlPath         String         @unique
+  mimeType        String
+  size            Float
+  visibility      FileVisibility @default(PUBLIC)
+  uploadedAt      DateTime       @default(now())
+  userId          String
+  path            String         @unique
+  isOcrProcessed  Boolean        @default(false)
+  ocrText         String?
+  password        String?
+  isPaste         Boolean        @default(false)
+  ocrConfidence   Float?
+  views           Int            @default(0)
+  downloads       Int            @default(0)
+  folderId        String?
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder          Folder?        @relation(fields: [folderId], references: [id])
+
+  @@index([folderId])
+}
+
+model Folder {
+  id        String   @id @default(cuid())
+  name      String
+  userId    String
+  parentId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  files     File[]
+  parent    Folder?  @relation("FolderParent", fields: [parentId], references: [id])
+  children  Folder[] @relation("FolderParent")
+
+  @@unique([name, userId, parentId])
 }
 
 model ShortenedUrl {
@@ -46,4 +87,9 @@ model Config {
 enum UserRole {
   ADMIN
   USER
+}
+
+enum FileVisibility {
+  PUBLIC
+  PRIVATE
 }
