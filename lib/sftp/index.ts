@@ -16,7 +16,7 @@ let clientPromise: Promise<Client> | null = null
 export function getSftpConfig(): SftpConfig {
   if (cachedConfig) return cachedConfig
   cachedConfig = {
-    host: process.env.SFTP_HOST || '192.168.0.200',
+    host: process.env.SFTP_HOST || '172.17.31.58',
     port: parseInt(process.env.SFTP_PORT || '22', 10),
     username: process.env.SFTP_USERNAME || '',
     password: process.env.SFTP_PASSWORD || undefined,

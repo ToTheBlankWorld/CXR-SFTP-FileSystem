@@ -25,7 +25,7 @@ export const configSchema = z.object({
         disabledMessage: z.string(),
       }),
       sftp: z.object({
-        host: z.string().default('192.168.0.200'),
+        host: z.string().default('172.17.31.58'),
         port: z.number().default(22),
         username: z.string().default(''),
         rootPath: z.string().default('/'),
@@ -62,7 +62,7 @@ export const DEFAULT_CONFIG: FlareConfig = {
         disabledMessage: '',
       },
       sftp: {
-        host: '192.168.0.200',
+        host: '172.17.31.58',
         port: 22,
         username: '',
         rootPath: '/',

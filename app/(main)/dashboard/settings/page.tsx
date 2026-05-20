@@ -681,7 +681,7 @@ export default function SettingsPage() {
                           },
                         })
                       }
-                      placeholder="192.168.0.200"
+                      placeholder="172.17.31.58"
                       className={getFieldClasses('general', ['sftp', 'host'])}
                     />
                   </div>

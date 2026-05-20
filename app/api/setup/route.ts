@@ -86,7 +86,7 @@ export async function POST(req: Request) {
             disabledMessage: validatedData.registrations.disabledMessage || '',
           },
           sftp: {
-            host: '192.168.0.200',
+            host: '172.17.31.58',
             port: 22,
             username: '',
             rootPath: '/',
