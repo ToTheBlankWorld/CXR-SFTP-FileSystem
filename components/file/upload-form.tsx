@@ -199,7 +199,10 @@ export function UploadForm() {
 
           const relPath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || ''
           const dirPart = relPath.substring(0, relPath.lastIndexOf('/'))
-          if (dirPart) formData.append('subpath', dirPart)
+          if (dirPart) {
+            formData.append('subpath', dirPart)
+            formData.append('fullpath', relPath)
+          }
 
           await new Promise<void>((resolve, reject) => {
             const xhr = new XMLHttpRequest()

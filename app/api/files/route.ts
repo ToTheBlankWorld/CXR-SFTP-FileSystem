@@ -77,6 +77,7 @@ export async function POST(req: Request) {
     const uploadedFile = formData.get('file') as File
     const targetPath = (formData.get('path') as string) || '/'
     const subpath = (formData.get('subpath') as string) || ''
+    const fullpath = (formData.get('fullpath') as string) || ''
 
     if (!uploadedFile) {
       return apiError('No file provided', HTTP_STATUS.BAD_REQUEST)
@@ -92,10 +93,10 @@ export async function POST(req: Request) {
 
     const bytes = await uploadedFile.arrayBuffer()
     const buffer = Buffer.from(bytes)
-    const fileName = subpath ? `${subpath}/${uploadedFile.name}` : uploadedFile.name
+    const fileName = fullpath || (subpath ? `${subpath}/${uploadedFile.name}` : uploadedFile.name)
     const remotePath = `${targetPath}/${fileName}`.replace(/\/+/g, '/')
 
-    logger.info('upload targetPath=' + targetPath + ' subpath=' + subpath + ' fileName=' + uploadedFile.name + ' remotePath=' + remotePath)
+    logger.info('upload targetPath=' + targetPath + ' subpath=' + subpath + ' fullpath=' + fullpath + ' fileName=' + uploadedFile.name + ' remotePath=' + remotePath)
 
     await uploadFile(buffer, remotePath)
 
