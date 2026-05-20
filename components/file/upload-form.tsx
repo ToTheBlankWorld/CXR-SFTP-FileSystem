@@ -198,9 +198,7 @@ export function UploadForm() {
           formData.append('path', uploadPath)
 
           const relPath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || ''
-          const firstSlash = relPath.indexOf('/')
-          const innerPath = firstSlash >= 0 ? relPath.substring(firstSlash + 1) : relPath
-          const dirPart = innerPath.substring(0, innerPath.lastIndexOf('/'))
+          const dirPart = relPath.substring(0, relPath.lastIndexOf('/'))
           if (dirPart) formData.append('subpath', dirPart)
 
           await new Promise<void>((resolve, reject) => {
