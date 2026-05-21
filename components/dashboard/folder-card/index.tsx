@@ -48,7 +48,7 @@ export function FolderCard({
       return
     }
     try {
-      const res = await fetch(`/api/folders/${folder.id}`, {
+      const res = await fetch(`/api/folders/${encodeURIComponent(folder.id)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newName.trim() }),
@@ -67,7 +67,7 @@ export function FolderCard({
 
   const handleDelete = async () => {
     try {
-      const res = await fetch(`/api/folders/${folder.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/folders/${encodeURIComponent(folder.id)}`, { method: 'DELETE' })
       if (!res.ok) throw new Error()
       toast({
         title: 'Folder deleted',
@@ -102,7 +102,7 @@ export function FolderCard({
                     onClick={(e) => {
                       e.stopPropagation()
                       const a = document.createElement('a')
-                      a.href = `/api/folders/${folder.id}/download`
+                      a.href = `/api/folders/${encodeURIComponent(folder.id)}/download`
                       a.download = `${folder.name}.tar`
                       document.body.appendChild(a)
                       a.click()
