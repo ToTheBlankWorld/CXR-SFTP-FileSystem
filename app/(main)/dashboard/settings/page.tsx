@@ -165,10 +165,16 @@ export default function SettingsPage() {
     null
   )
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
   const [updateInfo, setUpdateInfo] = useState<{
     hasUpdate: boolean
+    currentSha?: string
+    latestSha?: string
     latestVersion?: string
+    latestMessage?: string
+    latestDate?: string
     releaseUrl?: string
+    message?: string
   } | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -403,6 +409,43 @@ export default function SettingsPage() {
     }
   }
 
+  const applyUpdate = async () => {
+    try {
+      setIsUpdating(true)
+      toast({
+        title: 'Updating Instance',
+        description: 'Applying updates, updating dependencies, and rebuilding. This will take up to 3 minutes. Please do not close this page.',
+      })
+
+      const response = await fetch('/api/updates/apply', {
+        method: 'POST',
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to apply update')
+      }
+
+      toast({
+        title: 'Update Complete',
+        description: data.message || 'Application successfully updated and rebuilt. Please restart the application to run the new version.',
+        variant: 'default',
+      })
+      
+      // Recheck status after updating
+      await checkForUpdates()
+    } catch (error: any) {
+      toast({
+        title: 'Update Failed',
+        description: error.message || 'An error occurred during update.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
   const hasFaviconChanged = useCallback(() => {
     return pendingFaviconFile !== null
   }, [pendingFaviconFile])
@@ -488,48 +531,78 @@ export default function SettingsPage() {
                       <p className="text-sm text-muted-foreground">
                         Current version: {pkg.version}
                         {updateInfo && (
-                          <span className="ml-2 text-primary">
+                          <span className="ml-2 text-primary font-medium">
                             {updateInfo.hasUpdate
                               ? `(Update available: ${updateInfo.latestVersion})`
                               : '(Up to date)'}
                           </span>
                         )}
                       </p>
+                      {updateInfo?.hasUpdate && updateInfo.latestMessage && (
+                        <div className="mt-2 p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs space-y-1 max-w-md">
+                          <p className="font-semibold text-foreground">Latest Commit Message:</p>
+                          <p className="text-muted-foreground italic">"{updateInfo.latestMessage.split('\n')[0]}"</p>
+                          {updateInfo.latestDate && (
+                            <p className="text-[10px] text-muted-foreground">
+                              Date: {new Date(updateInfo.latestDate).toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       {updateInfo?.hasUpdate && (
-                        <Button variant="outline" asChild>
-                          <a
-                            href={updateInfo.releaseUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2"
+                        <>
+                          <Button variant="outline" asChild disabled={isUpdating}>
+                            <a
+                              href={updateInfo.releaseUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                              View Commit
+                            </a>
+                          </Button>
+                          <Button
+                            onClick={applyUpdate}
+                            disabled={isUpdating || isCheckingUpdate}
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground"
                           >
-                            <ExternalLink className="h-4 w-4" />
-                            View Release
-                          </a>
+                            {isUpdating ? (
+                              <>
+                                <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
+                                Updating...
+                              </>
+                            ) : (
+                              'Update Now'
+                            )}
+                          </Button>
+                        </>
+                      )}
+                      {!isUpdating && (
+                        <Button
+                          onClick={checkForUpdates}
+                          disabled={isCheckingUpdate}
+                          variant={updateInfo?.hasUpdate ? 'secondary' : 'default'}
+                        >
+                          {isCheckingUpdate ? (
+                            <>
+                              <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
+                              Checking...
+                            </>
+                          ) : (
+                            'Check for Updates'
+                          )}
                         </Button>
                       )}
-                      <Button
-                        onClick={checkForUpdates}
-                        disabled={isCheckingUpdate}
-                      >
-                        {isCheckingUpdate ? (
-                          <>
-                            <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-                            Checking...
-                          </>
-                        ) : (
-                          'Check for Updates'
-                        )}
-                      </Button>
                     </div>
                   </div>
 
                   <div className="flex items-center space-x-2">
-                    <Button variant="outline" size="sm" asChild>
+                    <Button variant="outline" size="sm" asChild disabled={isUpdating}>
                       <a
-                        href="https://github.com/ToTheBlankWorld/-CXR-Lab-File-System"
+                        href="https://github.com/ToTheBlankWorld/CXR-SFTP-FileSystem"
                         target="_blank"
                         rel="noopener noreferrer"
                       >
