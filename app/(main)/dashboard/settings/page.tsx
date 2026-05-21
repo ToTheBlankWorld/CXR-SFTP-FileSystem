@@ -3,16 +3,11 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import pkg from '@/package.json'
-import { css } from '@codemirror/lang-css'
-import { html } from '@codemirror/lang-html'
-import CodeMirror from '@uiw/react-codemirror'
 import DOMPurify from 'dompurify'
 import { deepEqual } from 'fast-equals'
 import {
   Circle,
-  Code,
   ExternalLink,
-  FileCode,
   Github,
   Heart,
   InfoIcon,
@@ -170,9 +165,6 @@ export default function SettingsPage() {
   const [faviconPreviewUrl, setFaviconPreviewUrl] = useState<string | null>(
     null
   )
-
-  const [cssEditorOpen, setCssEditorOpen] = useState(false)
-  const [htmlEditorOpen, setHtmlEditorOpen] = useState(false)
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
   const [updateInfo, setUpdateInfo] = useState<{
     hasUpdate: boolean
@@ -334,12 +326,6 @@ export default function SettingsPage() {
       count++
     }
 
-    if (
-      !deepEqual(savedConfig.settings.advanced, workingConfig.settings.advanced)
-    ) {
-      count++
-    }
-
     return count
   }, [savedConfig, workingConfig])
 
@@ -361,12 +347,6 @@ export default function SettingsPage() {
       )
     ) {
       changedGroups.push('Appearance')
-    }
-
-    if (
-      !deepEqual(savedConfig.settings.advanced, workingConfig.settings.advanced)
-    ) {
-      changedGroups.push('Advanced')
     }
 
     return changedGroups
@@ -486,17 +466,6 @@ export default function SettingsPage() {
                 {!deepEqual(
                   savedConfig?.settings.appearance,
                   workingConfig?.settings.appearance
-                ) && (
-                  <span className="absolute -top-1 -right-1">
-                    <Circle className="h-2 w-2 fill-primary text-primary" />
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="advanced" className="relative">
-                Advanced
-                {!deepEqual(
-                  savedConfig?.settings.advanced,
-                  workingConfig?.settings.advanced
                 ) && (
                   <span className="absolute -top-1 -right-1">
                     <Circle className="h-2 w-2 fill-primary text-primary" />
@@ -895,128 +864,6 @@ export default function SettingsPage() {
                         />
                       </label>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="advanced" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Custom Styling</CardTitle>
-                  <CardDescription>
-                    Add custom CSS to your instance
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Label>Custom CSS</Label>
-                        {isFieldChanged('advanced', ['customCSS']) && (
-                          <ChangeIndicator />
-                        )}
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCssEditorOpen(!cssEditorOpen)}
-                      >
-                        <Code className="mr-2 h-4 w-4" />
-                        {cssEditorOpen ? 'Close Editor' : 'Open Editor'}
-                      </Button>
-                    </div>
-                    {cssEditorOpen && (
-                      <Card
-                        className={`mt-4 ${isFieldChanged('advanced', ['customCSS']) ? 'border-primary' : ''}`}
-                      >
-                        <CardHeader className="flex flex-row items-center justify-between">
-                          <div>
-                            <CardTitle>Custom CSS Editor</CardTitle>
-                            <CardDescription>
-                              Add custom CSS to customize your instance
-                            </CardDescription>
-                          </div>
-                          {isFieldChanged('advanced', ['customCSS']) && (
-                            <ChangeIndicator />
-                          )}
-                        </CardHeader>
-                        <CardContent>
-                          <CodeMirror
-                            value={workingConfig.settings.advanced.customCSS}
-                            height="200px"
-                            extensions={[css()]}
-                            onChange={(value) => {
-                              handleSettingChange('advanced', {
-                                customCSS: value,
-                              })
-                            }}
-                            theme="dark"
-                            className="border rounded-md"
-                          />
-                        </CardContent>
-                      </Card>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>HTML Head Content</CardTitle>
-                  <CardDescription>
-                    Add custom HTML to the head section
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Label>Custom HTML</Label>
-                        {isFieldChanged('advanced', ['customHead']) && (
-                          <ChangeIndicator />
-                        )}
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setHtmlEditorOpen(!htmlEditorOpen)}
-                      >
-                        <FileCode className="mr-2 h-4 w-4" />
-                        {htmlEditorOpen ? 'Close Editor' : 'Open Editor'}
-                      </Button>
-                    </div>
-                    {htmlEditorOpen && (
-                      <Card
-                        className={`mt-4 ${isFieldChanged('advanced', ['customHead']) ? 'border-primary' : ''}`}
-                      >
-                        <CardHeader className="flex flex-row items-center justify-between">
-                          <div>
-                            <CardTitle>Custom HTML Editor</CardTitle>
-                            <CardDescription>
-                              Add custom HTML to the head of your instance
-                            </CardDescription>
-                          </div>
-                          {isFieldChanged('advanced', ['customHead']) && (
-                            <ChangeIndicator />
-                          )}
-                        </CardHeader>
-                        <CardContent>
-                          <CodeMirror
-                            value={workingConfig.settings.advanced.customHead}
-                            height="200px"
-                            extensions={[html()]}
-                            onChange={(value) => {
-                              handleSettingChange('advanced', {
-                                customHead: value,
-                              })
-                            }}
-                            theme="dark"
-                            className="border rounded-md"
-                          />
-                        </CardContent>
-                      </Card>
-                    )}
                   </div>
                 </CardContent>
               </Card>

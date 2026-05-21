@@ -33,13 +33,6 @@ export async function GET(req: Request) {
         email: true,
         image: true,
         role: true,
-        urlId: true,
-        vanityId: true,
-        _count: {
-          select: {
-            shortenedUrls: true,
-          },
-        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -119,13 +112,6 @@ export async function POST(req: Request) {
         email: true,
         image: true,
         role: true,
-        urlId: true,
-        vanityId: true,
-        _count: {
-          select: {
-            shortenedUrls: true,
-          },
-        },
       },
     })
 
@@ -162,47 +148,12 @@ export async function PUT(req: Request) {
       return apiError('User not found', HTTP_STATUS.NOT_FOUND)
     }
 
-    if (body.urlId) {
-      const existingUrlId = await prisma.user.findUnique({
-        where: { urlId: body.urlId },
-      })
-      if (existingUrlId && existingUrlId.id !== body.id) {
-        return apiError('URL ID is already in use', HTTP_STATUS.BAD_REQUEST)
-      }
-    }
-
-    if (body.vanityId !== undefined && body.vanityId !== null) {
-      const existingVanity = await prisma.user.findUnique({
-        where: { vanityId: body.vanityId },
-      })
-      if (existingVanity && existingVanity.id !== body.id) {
-        return apiError(
-          'This vanity URL is already taken',
-          HTTP_STATUS.BAD_REQUEST
-        )
-      }
-
-      const existingVanityAsUrlId = await prisma.user.findUnique({
-        where: { urlId: body.vanityId },
-      })
-      if (existingVanityAsUrlId) {
-        return apiError(
-          'This vanity URL conflicts with an existing URL ID',
-          HTTP_STATUS.BAD_REQUEST
-        )
-      }
-    }
-
     const updateData = {
       updatedAt: new Date(),
       ...(body.name !== undefined && { name: body.name }),
       ...(body.email !== undefined && { email: body.email }),
       ...(body.role !== undefined && { role: body.role }),
       ...(body.password && { password: await hash(body.password, 10) }),
-      ...(body.urlId && { urlId: body.urlId }),
-      ...(body.vanityId !== undefined && {
-        vanityId: body.vanityId || null,
-      }),
     }
 
     const user = await prisma.user.update({
@@ -214,13 +165,6 @@ export async function PUT(req: Request) {
         email: true,
         image: true,
         role: true,
-        urlId: true,
-        vanityId: true,
-        _count: {
-          select: {
-            shortenedUrls: true,
-          },
-        },
       },
     })
 
