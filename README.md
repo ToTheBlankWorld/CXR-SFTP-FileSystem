@@ -1,6 +1,6 @@
 <div align="center">
   <img src="./public/banner.png" alt="CXR-Lab Banner" width="600px" />
-  
+   
   ### Local LAN-based file sharing and management system for labs and campuses
 
 [![GitHub Release](https://img.shields.io/github/v/release/ToTheBlankWorld/CXR-SFTP-FileSystem?include_prereleases&style=for-the-badge&logo=github&color=3b82f6)](https://github.com/ToTheBlankWorld/CXR-SFTP-FileSystem/releases)
