@@ -7,14 +7,14 @@ const logger = loggers.files
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string[] }> }
 ) {
   try {
     const auth = await requireAuth(request)
     if (auth.response) return auth.response
 
     const { id } = await params
-    const dirPath = decodeURIComponent(id)
+    const dirPath = ('/' + id.map(decodeURIComponent).join('/')).replace(/\/+/g, '/')
 
     const entries = await listDir(dirPath)
     const files = entries

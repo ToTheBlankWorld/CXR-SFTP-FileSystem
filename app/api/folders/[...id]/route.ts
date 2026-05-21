@@ -8,14 +8,14 @@ const logger = loggers.files
 
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string[] }> }
 ) {
   try {
     const auth = await requireAuth(request)
     if (auth.response) return auth.response
 
     const { id } = await params
-    const folderPath = decodeURIComponent(id)
+    const folderPath = ('/' + id.map(decodeURIComponent).join('/')).replace(/\/+/g, '/')
     const body = await request.json()
     const { name } = body
 
@@ -89,20 +89,28 @@ export async function PATCH(
     })
   } catch (error) {
     logger.error('Error renaming folder', error as Error)
+    const errMessage = (error as Error).message || ''
+    if (
+      errMessage.toLowerCase().includes('permission') ||
+      errMessage.toLowerCase().includes('denied') ||
+      errMessage.toLowerCase().includes('unauthorized')
+    ) {
+      return apiError("You don't have permission to modify or delete this folder", HTTP_STATUS.FORBIDDEN)
+    }
     return apiError('Failed to rename folder', HTTP_STATUS.INTERNAL_SERVER_ERROR)
   }
 }
 
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string[] }> }
 ) {
   try {
     const auth = await requireAuth(request)
     if (auth.response) return auth.response
 
     const { id } = await params
-    const folderPath = decodeURIComponent(id)
+    const folderPath = ('/' + id.map(decodeURIComponent).join('/')).replace(/\/+/g, '/')
 
     const folder = await prisma.folder.findUnique({ where: { id: folderPath } })
     if (auth.user?.role !== 'ADMIN') {
@@ -136,6 +144,14 @@ export async function DELETE(
     return apiResponse({ success: true })
   } catch (error) {
     logger.error('Error deleting folder', error as Error)
+    const errMessage = (error as Error).message || ''
+    if (
+      errMessage.toLowerCase().includes('permission') ||
+      errMessage.toLowerCase().includes('denied') ||
+      errMessage.toLowerCase().includes('unauthorized')
+    ) {
+      return apiError("You don't have permission to modify or delete this folder", HTTP_STATUS.FORBIDDEN)
+    }
     return apiError('Failed to delete folder', HTTP_STATUS.INTERNAL_SERVER_ERROR)
   }
 }

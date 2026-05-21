@@ -3,7 +3,7 @@
 import { useState } from 'react'
 
 import { FolderType } from '@/types/dto/folder'
-import { Download, Edit3, Folder, FolderOpen, Trash2 } from 'lucide-react'
+import { Download, Edit3, Folder, FolderOpen, ShieldAlert, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -42,6 +42,8 @@ export function FolderCard({
   const [isRenameOpen, setIsRenameOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [newName, setNewName] = useState(folder.name)
+  const [isPermissionDeniedOpen, setIsPermissionDeniedOpen] = useState(false)
+  const [permissionErrorMsg, setPermissionErrorMsg] = useState('')
 
   const handleRename = async () => {
     if (!newName.trim() || newName.trim() === folder.name) {
@@ -49,17 +51,27 @@ export function FolderCard({
       return
     }
     try {
-      const res = await fetch(`/api/folders/${encodeURIComponent(folder.id)}`, {
+      const folderPathSegment = folder.id.split('/').filter(Boolean).map(encodeURIComponent).join('/')
+      const res = await fetch(`/api/folders/${folderPathSegment}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newName.trim() }),
       })
       if (!res.ok) {
-        if (res.status === 403) {
-          throw new Error("You don't have permission to modify or delete this file/folder")
-        }
         const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to rename folder')
+        const errorMsg = data.error || ''
+        if (
+          res.status === 403 ||
+          errorMsg.toLowerCase().includes('permission') ||
+          errorMsg.toLowerCase().includes('only') ||
+          errorMsg.toLowerCase().includes('modify')
+        ) {
+          setPermissionErrorMsg(errorMsg || "You don't have permission to modify or delete this file/folder")
+          setIsPermissionDeniedOpen(true)
+          setIsRenameOpen(false)
+          return
+        }
+        throw new Error(errorMsg || 'Failed to rename folder')
       }
       toast({
         title: 'Folder renamed',
@@ -78,13 +90,23 @@ export function FolderCard({
 
   const handleDelete = async () => {
     try {
-      const res = await fetch(`/api/folders/${encodeURIComponent(folder.id)}`, { method: 'DELETE' })
+      const folderPathSegment = folder.id.split('/').filter(Boolean).map(encodeURIComponent).join('/')
+      const res = await fetch(`/api/folders/${folderPathSegment}`, { method: 'DELETE' })
       if (!res.ok) {
-        if (res.status === 403) {
-          throw new Error("You don't have permission to modify or delete this file/folder")
-        }
         const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to delete folder')
+        const errorMsg = data.error || ''
+        if (
+          res.status === 403 ||
+          errorMsg.toLowerCase().includes('permission') ||
+          errorMsg.toLowerCase().includes('only') ||
+          errorMsg.toLowerCase().includes('modify')
+        ) {
+          setPermissionErrorMsg(errorMsg || "You don't have permission to modify or delete this file/folder")
+          setIsPermissionDeniedOpen(true)
+          setIsDeleteOpen(false)
+          return
+        }
+        throw new Error(errorMsg || 'Failed to delete folder')
       }
       toast({
         title: 'Folder deleted',
@@ -132,8 +154,9 @@ export function FolderCard({
                     className="h-8 w-8 glass-hover"
                     onClick={(e) => {
                       e.stopPropagation()
+                      const folderPathSegment = folder.id.split('/').filter(Boolean).map(encodeURIComponent).join('/')
                       const a = document.createElement('a')
-                      a.href = `/api/folders/${encodeURIComponent(folder.id)}/download`
+                      a.href = `/api/folders/${folderPathSegment}/download`
                       a.download = `${folder.name}.tar`
                       document.body.appendChild(a)
                       a.click()
@@ -246,6 +269,31 @@ export function FolderCard({
               </Button>
               <Button variant="destructive" onClick={handleDelete}>
                 Delete
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isPermissionDeniedOpen} onOpenChange={setIsPermissionDeniedOpen}>
+        <DialogContent className="sm:max-w-md border border-red-500/20 bg-black/90 backdrop-blur-xl shadow-[0_0_50px_rgba(239,68,68,0.15)] text-foreground">
+          <DialogHeader className="flex flex-col items-center gap-4 text-center">
+            <div className="rounded-full bg-red-500/10 p-3 ring-1 ring-red-500/30">
+              <ShieldAlert className="h-6 w-6 text-red-500 animate-pulse" />
+            </div>
+            <DialogTitle className="text-xl font-bold tracking-tight">Permission Denied</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4 text-center">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {permissionErrorMsg || "You don't have permission to modify or delete this file/folder"}
+            </p>
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="outline"
+                className="w-28 border-border/50 hover:bg-white/10"
+                onClick={() => setIsPermissionDeniedOpen(false)}
+              >
+                Dismiss
               </Button>
             </div>
           </div>

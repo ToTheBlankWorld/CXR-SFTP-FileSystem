@@ -10,6 +10,7 @@ import {
   Clock,
   Download,
   Link as LinkIcon,
+  ShieldAlert,
   Trash2,
 } from 'lucide-react'
 
@@ -43,6 +44,8 @@ export function FileCard({ file: initialFile, onDelete }: FileCardProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [file] = useState(initialFile)
   const [isDeleted, setIsDeleted] = useState(false)
+  const [isPermissionDeniedOpen, setIsPermissionDeniedOpen] = useState(false)
+  const [permissionErrorMsg, setPermissionErrorMsg] = useState('')
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(file.urlPath)
@@ -58,11 +61,20 @@ export function FileCard({ file: initialFile, onDelete }: FileCardProps) {
         method: 'DELETE',
       })
       if (!response.ok) {
-        if (response.status === 403) {
-          throw new Error("You don't have permission to modify or delete this file/folder")
-        }
         const data = await response.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to delete file')
+        const errorMsg = data.error || ''
+        if (
+          response.status === 403 ||
+          errorMsg.toLowerCase().includes('permission') ||
+          errorMsg.toLowerCase().includes('only') ||
+          errorMsg.toLowerCase().includes('modify')
+        ) {
+          setPermissionErrorMsg(errorMsg || "You don't have permission to modify or delete this file/folder")
+          setIsPermissionDeniedOpen(true)
+          setIsDeleteDialogOpen(false)
+          return
+        }
+        throw new Error(errorMsg || 'Failed to delete file')
       }
 
       setIsDeleted(true)
@@ -219,6 +231,31 @@ export function FileCard({ file: initialFile, onDelete }: FileCardProps) {
                 }}
               >
                 Delete
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isPermissionDeniedOpen} onOpenChange={setIsPermissionDeniedOpen}>
+        <DialogContent className="sm:max-w-md border border-red-500/20 bg-black/90 backdrop-blur-xl shadow-[0_0_50px_rgba(239,68,68,0.15)] text-foreground">
+          <DialogHeader className="flex flex-col items-center gap-4 text-center">
+            <div className="rounded-full bg-red-500/10 p-3 ring-1 ring-red-500/30">
+              <ShieldAlert className="h-6 w-6 text-red-500 animate-pulse" />
+            </div>
+            <DialogTitle className="text-xl font-bold tracking-tight">Permission Denied</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4 text-center">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {permissionErrorMsg || "You don't have permission to modify or delete this file/folder"}
+            </p>
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="outline"
+                className="w-28 border-border/50 hover:bg-white/10"
+                onClick={() => setIsPermissionDeniedOpen(false)}
+              >
+                Dismiss
               </Button>
             </div>
           </div>

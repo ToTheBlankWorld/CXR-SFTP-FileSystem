@@ -8,14 +8,14 @@ const logger = loggers.files
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string[] }> }
 ) {
   try {
     const auth = await requireAuth(request)
     if (auth.response) return auth.response
 
     const { id } = await params
-    const folderPath = decodeURIComponent(id)
+    const folderPath = ('/' + id.map(decodeURIComponent).join('/')).replace(/\/+/g, '/')
 
     const files = await listAllFilesRecursive(folderPath)
     if (files.length === 0) {

@@ -156,6 +156,14 @@ export async function DELETE(req: Request) {
     return apiResponse({ success: true })
   } catch (error) {
     logger.error('File delete error', error as Error)
+    const errMessage = (error as Error).message || ''
+    if (
+      errMessage.toLowerCase().includes('permission') ||
+      errMessage.toLowerCase().includes('denied') ||
+      errMessage.toLowerCase().includes('unauthorized')
+    ) {
+      return apiError("You don't have permission to modify or delete this file", HTTP_STATUS.FORBIDDEN)
+    }
     return apiError('Failed to delete file', HTTP_STATUS.INTERNAL_SERVER_ERROR)
   }
 }
@@ -197,6 +205,14 @@ export async function PATCH(req: Request) {
     return apiResponse({ success: true, newPath })
   } catch (error) {
     logger.error('File rename error', error as Error)
+    const errMessage = (error as Error).message || ''
+    if (
+      errMessage.toLowerCase().includes('permission') ||
+      errMessage.toLowerCase().includes('denied') ||
+      errMessage.toLowerCase().includes('unauthorized')
+    ) {
+      return apiError("You don't have permission to modify or delete this file", HTTP_STATUS.FORBIDDEN)
+    }
     return apiError('Failed to rename file', HTTP_STATUS.INTERNAL_SERVER_ERROR)
   }
 }
