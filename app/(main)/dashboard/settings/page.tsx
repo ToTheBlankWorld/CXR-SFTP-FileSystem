@@ -9,7 +9,6 @@ import {
   Circle,
   ExternalLink,
   Github,
-  Heart,
   InfoIcon,
   Save,
   Upload,
@@ -536,16 +535,6 @@ export default function SettingsPage() {
                       >
                         <Github className="mr-2 h-4 w-4" />
                         View on GitHub
-                      </a>
-                    </Button>
-                    <Button variant="outline" size="sm" asChild>
-                      <a
-                        href="https://ko-fi.com/FlintSH"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <Heart className="mr-2 h-4 w-4" />
-                        Sponsor
                       </a>
                     </Button>
                   </div>

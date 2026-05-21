@@ -9,7 +9,6 @@ import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { ProfileAccount } from './account'
-import { ProfileExport } from './export'
 import { ProfileSecurity } from './security'
 
 import { ProfileTools } from './tools'
@@ -26,7 +25,6 @@ export function ProfileClient({
       <TabsList className="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground">
         <TabsTrigger value="profile">Profile</TabsTrigger>
         <TabsTrigger value="security">Security</TabsTrigger>
-        <TabsTrigger value="data">Data</TabsTrigger>
       </TabsList>
 
       <TabsContent value="profile" className="space-y-6">
@@ -60,20 +58,6 @@ export function ProfileClient({
         </Card>
       </TabsContent>
 
-      <TabsContent value="data" className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Data Management</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <ProfileExport />
-
-            <Separator className="my-6" />
-
-            <ProfileSecurity onUpdate={handleRefresh} />
-          </CardContent>
-        </Card>
-      </TabsContent>
     </Tabs>
   )
 }
