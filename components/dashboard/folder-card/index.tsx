@@ -54,30 +54,50 @@ export function FolderCard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newName.trim() }),
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        if (res.status === 403) {
+          throw new Error("You don't have permission to modify or delete this file/folder")
+        }
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to rename folder')
+      }
       toast({
         title: 'Folder renamed',
         description: `Folder renamed to "${newName.trim()}"`,
       })
       onRename?.(folder.id, newName.trim())
       setIsRenameOpen(false)
-    } catch {
-      toast({ title: 'Failed to rename folder', variant: 'destructive' })
+    } catch (err) {
+      toast({
+        title: 'Failed to rename folder',
+        description: err instanceof Error ? err.message : 'An error occurred',
+        variant: 'destructive',
+      })
     }
   }
 
   const handleDelete = async () => {
     try {
       const res = await fetch(`/api/folders/${encodeURIComponent(folder.id)}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        if (res.status === 403) {
+          throw new Error("You don't have permission to modify or delete this file/folder")
+        }
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to delete folder')
+      }
       toast({
         title: 'Folder deleted',
         description: `${folder.name} has been deleted`,
       })
       onDelete?.(folder.id)
       setIsDeleteOpen(false)
-    } catch {
-      toast({ title: 'Failed to delete folder', variant: 'destructive' })
+    } catch (err) {
+      toast({
+        title: 'Failed to delete folder',
+        description: err instanceof Error ? err.message : 'An error occurred',
+        variant: 'destructive',
+      })
     }
   }
 

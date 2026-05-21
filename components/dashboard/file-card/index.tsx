@@ -57,7 +57,13 @@ export function FileCard({ file: initialFile, onDelete }: FileCardProps) {
       const response = await fetch(`/api/files?path=${encodeURIComponent(file.id)}`, {
         method: 'DELETE',
       })
-      if (!response.ok) throw new Error()
+      if (!response.ok) {
+        if (response.status === 403) {
+          throw new Error("You don't have permission to modify or delete this file/folder")
+        }
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to delete file')
+      }
 
       setIsDeleted(true)
 
@@ -69,10 +75,10 @@ export function FileCard({ file: initialFile, onDelete }: FileCardProps) {
         title: 'File deleted',
         description: 'The file has been permanently deleted',
       })
-    } catch {
+    } catch (err) {
       toast({
         title: 'Failed to delete file',
-        description: 'Please try again',
+        description: err instanceof Error ? err.message : 'Please try again',
         variant: 'destructive',
       })
     }

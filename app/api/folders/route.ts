@@ -68,6 +68,13 @@ export async function POST(request: Request) {
 
     await mkdir(newPath)
 
+    const cleanParentId = parentPath === '/' ? null : parentPath
+    await prisma.folder.upsert({
+      where: { id: newPath },
+      update: { name: cleanName, userId: auth.user!.id, parentId: cleanParentId },
+      create: { id: newPath, name: cleanName, userId: auth.user!.id, parentId: cleanParentId }
+    })
+
     return apiResponse({
       id: newPath,
       name: cleanName,

@@ -147,7 +147,7 @@ export async function DELETE(req: Request) {
     if (auth.user?.role !== 'ADMIN') {
       const file = await prisma.file.findUnique({ where: { path: filePath } })
       if (!file || file.userId !== auth.user.id) {
-        return apiError('You can only delete files you uploaded', HTTP_STATUS.FORBIDDEN)
+        return apiError("You don't have permission to modify or delete this file", HTTP_STATUS.FORBIDDEN)
       }
     }
 
@@ -172,10 +172,28 @@ export async function PATCH(req: Request) {
       return apiError('File path and new name are required', HTTP_STATUS.BAD_REQUEST)
     }
 
+    if (auth.user?.role !== 'ADMIN') {
+      const file = await prisma.file.findUnique({ where: { path: filePath } })
+      if (!file || file.userId !== auth.user.id) {
+        return apiError("You don't have permission to modify or delete this file", HTTP_STATUS.FORBIDDEN)
+      }
+    }
+
     const parentDir = filePath.substring(0, filePath.lastIndexOf('/') + 1)
     const newPath = `${parentDir}${name}`
 
     await rename(filePath, newPath)
+
+    // Update path, name and urlPath in DB
+    await prisma.file.updateMany({
+      where: { path: filePath },
+      data: {
+        path: newPath,
+        name: name,
+        urlPath: `/api/files/serve?path=${encodeURIComponent(newPath)}`
+      }
+    })
+
     return apiResponse({ success: true, newPath })
   } catch (error) {
     logger.error('File rename error', error as Error)
