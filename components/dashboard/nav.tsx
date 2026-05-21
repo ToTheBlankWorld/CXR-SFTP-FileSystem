@@ -63,9 +63,9 @@ export function DashboardNav() {
   return (
     <nav className="flex items-center w-full">
       <div className="flex items-center">
-        <Link href="/dashboard" className="flex items-center space-x-2.5">
-          <Icons.logo className="h-6 w-6" />
-          <span className="flare-text text-lg font-medium">CXR-Lab</span>
+        <Link href="/dashboard" className="flex items-center space-x-3 group">
+          <Icons.logo className="h-8 w-8 filter drop-shadow-[0_0_8px_rgba(59,130,246,0.3)] transition-transform duration-300 group-hover:scale-105" width={32} height={32} />
+          <span className="flare-text text-xl font-semibold tracking-wide">CXR-Lab</span>
         </Link>
       </div>
 

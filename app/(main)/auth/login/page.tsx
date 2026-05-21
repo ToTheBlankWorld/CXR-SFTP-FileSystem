@@ -20,9 +20,9 @@ export default async function LoginPage() {
           <div className="flex flex-col items-center justify-center">
             <div className="relative rounded-2xl bg-white/10 dark:bg-black/10 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-lg shadow-black/5 dark:shadow-black/20">
               <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/10 via-transparent to-black/5 dark:from-white/5 dark:via-transparent dark:to-black/10" />
-              <div className="relative flex items-center justify-center space-x-3 px-6 py-4">
-                <Icons.logo className="h-8 w-8 text-primary" />
-                <span className="flare-text text-2xl text-primary">
+              <div className="relative flex flex-col items-center justify-center p-6 space-y-2">
+                <Icons.logo className="h-16 w-16 text-primary filter drop-shadow-[0_0_15px_rgba(59,130,246,0.5)] transition-all duration-300 hover:scale-105" width={64} height={64} />
+                <span className="flare-text text-3xl font-bold text-primary tracking-wide">
                   CXR-Lab
                 </span>
               </div>

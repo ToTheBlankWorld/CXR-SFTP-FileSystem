@@ -87,18 +87,18 @@ export function FolderCard({
         className="group relative overflow-hidden bg-background/40 backdrop-blur-xl border-border/50 shadow-lg shadow-black/5 hover:shadow-xl hover:shadow-black/10 transition-all duration-300 hover:bg-background/60 cursor-pointer"
         onClick={() => onNavigate(folder.id, folder.name)}
       >
-        <div className="relative aspect-square bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-pink-500/10 flex items-center justify-center overflow-hidden transition-all duration-500 group-hover:from-indigo-500/20 group-hover:via-purple-500/10 group-hover:to-pink-500/20">
+        <div className="relative aspect-square bg-gradient-to-br from-blue-950/40 via-black/20 to-blue-900/20 flex items-center justify-center overflow-hidden transition-all duration-500 group-hover:from-blue-950/60 group-hover:to-blue-900/40">
           {/* Glowing neon background blur */}
-          <div className="absolute w-24 h-24 rounded-full bg-indigo-500/10 blur-xl opacity-0 group-hover:opacity-100 transition-all duration-500" />
+          <div className="absolute w-24 h-24 rounded-full bg-blue-500/15 blur-xl opacity-0 group-hover:opacity-100 transition-all duration-500" />
           
           {/* Animated glow shadow under the icon */}
-          <Folder className="h-20 w-20 text-indigo-500/40 absolute blur-md opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500" />
+          <Folder className="h-20 w-20 text-blue-500/40 absolute blur-md opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500" />
           
           {/* Closed Folder (Default state) */}
-          <Folder className="h-20 w-20 text-indigo-500/60 transition-all duration-500 ease-out group-hover:scale-110 group-hover:opacity-0" />
+          <Folder className="h-20 w-20 text-blue-500/60 transition-all duration-500 ease-out group-hover:scale-110 group-hover:opacity-0" />
           
           {/* Open Folder (Hovered state) */}
-          <FolderOpen className="h-20 w-20 text-purple-500/70 absolute opacity-0 scale-95 transition-all duration-500 ease-out group-hover:opacity-100 group-hover:scale-110" />
+          <FolderOpen className="h-20 w-20 text-blue-400/80 absolute opacity-0 scale-95 transition-all duration-500 ease-out group-hover:opacity-100 group-hover:scale-110" />
         </div>
 
         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-3">
