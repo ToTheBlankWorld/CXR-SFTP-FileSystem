@@ -435,10 +435,11 @@ export default function SettingsPage() {
       
       // Recheck status after updating
       await checkForUpdates()
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred during update.'
       toast({
         title: 'Update Failed',
-        description: error.message || 'An error occurred during update.',
+        description: errorMessage,
         variant: 'destructive',
       })
     } finally {
@@ -541,7 +542,7 @@ export default function SettingsPage() {
                       {updateInfo?.hasUpdate && updateInfo.latestMessage && (
                         <div className="mt-2 p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs space-y-1 max-w-md">
                           <p className="font-semibold text-foreground">Latest Commit Message:</p>
-                          <p className="text-muted-foreground italic">"{updateInfo.latestMessage.split('\n')[0]}"</p>
+                          <p className="text-muted-foreground italic">&quot;{updateInfo.latestMessage.split('\n')[0]}&quot;</p>
                           {updateInfo.latestDate && (
                             <p className="text-[10px] text-muted-foreground">
                               Date: {new Date(updateInfo.latestDate).toLocaleString()}
