@@ -36,7 +36,7 @@ import { useToast } from '@/hooks/use-toast'
 
 export function FileGrid() {
   const [files, setFiles] = useState<FileType[]>([])
-  const [folders, setFolders] = useState<{ id: string; name: string; fileCount: number }[]>([])
+  const [folders, setFolders] = useState<{ id: string; name: string; fileCount: number; size?: number }[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [fileTypes] = useState<string[]>([])
   const [paginationInfo, setPaginationInfo] = useState<PaginationInfo>({
@@ -239,6 +239,7 @@ export function FileGrid() {
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString(),
                     fileCount: folder.fileCount,
+                    size: folder.size,
                   }}
                   onNavigate={navigateToFolder}
                   onDelete={handleDeleteFolder}

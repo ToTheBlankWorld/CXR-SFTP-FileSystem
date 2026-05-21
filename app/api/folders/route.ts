@@ -1,6 +1,7 @@
 import { listDir, mkdir } from '@/lib/sftp'
 import { HTTP_STATUS, apiError, apiResponse } from '@/lib/api/response'
 import { requireAuth } from '@/lib/auth/api-auth'
+import { prisma } from '@/lib/database/prisma'
 import { loggers } from '@/lib/logger'
 
 const logger = loggers.files
@@ -14,17 +15,33 @@ export async function GET(request: Request) {
     const parentPath = searchParams.get('parentId') || '/'
 
     const entries = await listDir(parentPath)
-    const folders = entries
-      .filter((e) => e.type === 'directory')
-      .map((e) => ({
-        id: e.path,
-        name: e.name,
-        userId: auth.user?.id || '',
-        parentId: parentPath === '/' ? null : parentPath,
-        createdAt: e.modifyTime.toISOString(),
-        updatedAt: e.modifyTime.toISOString(),
-        fileCount: 0,
-      }))
+    const folders = await Promise.all(
+      entries
+        .filter((e) => e.type === 'directory')
+        .map(async (e) => {
+          const prefix = e.path.endsWith('/') ? e.path : `${e.path}/`
+          const fileAgg = await prisma.file.aggregate({
+            _sum: { size: true },
+            where: {
+              path: {
+                startsWith: prefix,
+              },
+            },
+          })
+          const size = fileAgg._sum.size || 0
+
+          return {
+            id: e.path,
+            name: e.name,
+            userId: auth.user?.id || '',
+            parentId: parentPath === '/' ? null : parentPath,
+            createdAt: e.modifyTime.toISOString(),
+            updatedAt: e.modifyTime.toISOString(),
+            fileCount: 0,
+            size,
+          }
+        })
+    )
 
     return apiResponse(folders)
   } catch (error) {

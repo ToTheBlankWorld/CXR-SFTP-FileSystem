@@ -6,6 +6,7 @@ export interface FolderType {
   createdAt: string
   updatedAt: string
   fileCount: number
+  size?: number
 }
 
 export interface CreateFolderRequest {

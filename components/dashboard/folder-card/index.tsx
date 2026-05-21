@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/tooltip'
 
 import { useToast } from '@/hooks/use-toast'
+import { formatBytes } from '@/lib/utils'
 
 interface FolderCardProps {
   folder: FolderType
@@ -165,6 +166,11 @@ export function FolderCard({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            {folder.size !== undefined && (
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                {formatBytes(folder.size)}
+              </span>
+            )}
           </div>
         </div>
       </Card>
