@@ -156,7 +156,7 @@ export function FolderCard({
                       e.stopPropagation()
                       const folderPathSegment = folder.id.split('/').filter(Boolean).map(encodeURIComponent).join('/')
                       const a = document.createElement('a')
-                      a.href = `/api/folders/${folderPathSegment}/download`
+                      a.href = `/api/folders/download/${folderPathSegment}`
                       a.download = `${folder.name}.tar`
                       document.body.appendChild(a)
                       a.click()
