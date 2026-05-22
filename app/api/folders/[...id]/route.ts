@@ -25,16 +25,7 @@ export async function PATCH(
 
     const folder = await prisma.folder.findUnique({ where: { id: folderPath } })
     if (auth.user?.role !== 'ADMIN') {
-      if (folder && folder.userId !== auth.user.id) {
-        return apiError("You don't have permission to modify or delete this folder", HTTP_STATUS.FORBIDDEN)
-      }
-      
-      // Fallback check for legacy folders
-      const files = await prisma.file.findMany({
-        where: { path: { startsWith: folderPath } },
-        select: { userId: true }
-      })
-      if (files.some((f) => f.userId !== auth.user.id)) {
+      if (!folder || folder.userId !== auth.user.id) {
         return apiError("You don't have permission to modify or delete this folder", HTTP_STATUS.FORBIDDEN)
       }
     }
@@ -114,16 +105,7 @@ export async function DELETE(
 
     const folder = await prisma.folder.findUnique({ where: { id: folderPath } })
     if (auth.user?.role !== 'ADMIN') {
-      if (folder && folder.userId !== auth.user.id) {
-        return apiError("You don't have permission to modify or delete this folder", HTTP_STATUS.FORBIDDEN)
-      }
-      
-      // Fallback check
-      const files = await prisma.file.findMany({
-        where: { path: { startsWith: folderPath } },
-        select: { userId: true },
-      })
-      if (files.length > 0 && files.some((f) => f.userId !== auth.user.id)) {
+      if (!folder || folder.userId !== auth.user.id) {
         return apiError("You don't have permission to modify or delete this folder", HTTP_STATUS.FORBIDDEN)
       }
     }
