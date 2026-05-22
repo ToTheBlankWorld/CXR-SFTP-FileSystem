@@ -3,6 +3,7 @@ import { HTTP_STATUS, apiError, apiResponse } from '@/lib/api/response'
 import { requireAuth } from '@/lib/auth/api-auth'
 import { prisma } from '@/lib/database/prisma'
 import { loggers } from '@/lib/logger'
+import { normalizePath } from '@/lib/utils'
 
 const logger = loggers.files
 
@@ -15,7 +16,7 @@ export async function PATCH(
     if (auth.response) return auth.response
 
     const { id } = await params
-    const folderPath = ('/' + id.map(decodeURIComponent).join('/')).replace(/\/+/g, '/')
+    const folderPath = normalizePath('/' + id.map(decodeURIComponent).join('/'))
     const body = await request.json()
     const { name } = body
 
@@ -30,8 +31,8 @@ export async function PATCH(
       }
     }
 
-    const parentDir = folderPath.substring(0, folderPath.lastIndexOf('/') + 1)
-    const newPath = `${parentDir}${name.trim()}`
+    const parentDir = normalizePath(folderPath.substring(0, folderPath.lastIndexOf('/') + 1))
+    const newPath = normalizePath(`${parentDir}/${name.trim()}`)
 
     await rename(folderPath, newPath)
 
@@ -48,8 +49,8 @@ export async function PATCH(
       where: { id: { startsWith: `${folderPath}/` } }
     })
     for (const sub of subfolders) {
-      const newSubPath = sub.id.replace(folderPath, newPath)
-      const newSubParentId = sub.parentId ? sub.parentId.replace(folderPath, newPath) : null
+      const newSubPath = normalizePath(sub.id.replace(folderPath, newPath))
+      const newSubParentId = sub.parentId ? normalizePath(sub.parentId.replace(folderPath, newPath)) : null
       await prisma.folder.update({
         where: { id: sub.id },
         data: { id: newSubPath, parentId: newSubParentId }
@@ -61,8 +62,11 @@ export async function PATCH(
       where: { path: { startsWith: `${folderPath}/` } }
     })
     for (const file of files) {
-      const newFilePath = file.path.replace(folderPath, newPath)
-      const newUrlPath = `/api/files/serve?path=${encodeURIComponent(newFilePath)}`
+      const newFilePath = normalizePath(file.path.replace(folderPath, newPath))
+      const isLegacy = file.urlPath.startsWith('/api/files/serve')
+      const newUrlPath = isLegacy
+        ? `/api/files/serve?path=${encodeURIComponent(newFilePath)}`
+        : file.urlPath
       await prisma.file.update({
         where: { id: file.id },
         data: { path: newFilePath, urlPath: newUrlPath }
@@ -101,7 +105,7 @@ export async function DELETE(
     if (auth.response) return auth.response
 
     const { id } = await params
-    const folderPath = ('/' + id.map(decodeURIComponent).join('/')).replace(/\/+/g, '/')
+    const folderPath = normalizePath('/' + id.map(decodeURIComponent).join('/'))
 
     const folder = await prisma.folder.findUnique({ where: { id: folderPath } })
     if (auth.user?.role !== 'ADMIN') {

@@ -17,10 +17,11 @@ interface ProtectedFileProps {
     id: string
     name: string
     urlPath: string
-    visibility: 'PUBLIC' | 'PRIVATE'
+    visibility: 'PUBLIC' | 'PRIVATE' | 'USERS_AND_ADMINS' | 'USER_ONLY'
     password: string | null
     userId: string
     mimeType: string
+    path: string
   }
   verifiedPassword?: string
 }

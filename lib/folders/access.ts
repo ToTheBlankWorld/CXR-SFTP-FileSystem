@@ -50,7 +50,7 @@ export async function checkFolderAccess(
 
     // 2. Visibility check
     const folderOwner = isOwner(folder.userId)
-    if (folder.visibility === 'PRIVATE' && !folderOwner && !isAdmin) {
+    if (folder.visibility === 'PRIVATE' && !folderOwner) {
       return { allowed: false, reason: 'private', status: 404 }
     }
     if (folder.visibility === 'USERS_AND_ADMINS' && !session?.user) {

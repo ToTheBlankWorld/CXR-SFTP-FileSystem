@@ -7,6 +7,7 @@ import { loggers } from '@/lib/logger'
 import { checkFolderAccess } from '@/lib/folders/access'
 import { hash } from 'bcryptjs'
 import { FileVisibility } from '@prisma/client'
+import { normalizePath } from '@/lib/utils'
 
 const logger = loggers.files
 
@@ -15,7 +16,8 @@ async function ensureParentFoldersExist(
   userId: string,
   options: { passwordHash: string | null; visibility: FileVisibility; expiresAt: Date | null }
 ) {
-  const segments = filePath.split('/').filter(Boolean)
+  const normalizedFilePath = normalizePath(filePath)
+  const segments = normalizedFilePath.split('/').filter(Boolean)
   if (segments.length <= 1) return
 
   const folderSegments = segments.slice(0, -1)
@@ -23,17 +25,13 @@ async function ensureParentFoldersExist(
   for (let i = 0; i < folderSegments.length; i++) {
     const name = folderSegments[i]
     const parentPath = currentPath === '' ? '/' : currentPath
-    currentPath = `${currentPath}/${name}`
+    currentPath = normalizePath(`${currentPath}/${name}`)
 
-    const cleanParentId = parentPath === '/' ? null : parentPath
+    const cleanParentId = parentPath === '/' ? null : normalizePath(parentPath)
 
     await prisma.folder.upsert({
       where: { id: currentPath },
-      update: {
-        visibility: options.visibility,
-        password: options.passwordHash,
-        expiresAt: options.expiresAt,
-      },
+      update: {},
       create: {
         id: currentPath,
         name: name,
@@ -47,13 +45,31 @@ async function ensureParentFoldersExist(
   }
 }
 
+async function generateUniqueUrlPath(userUrlId: string, filename: string): Promise<string> {
+  const baseName = filename.replace(/\s+/g, '-')
+  let attempt = 0
+  while (true) {
+    const candidate = attempt === 0
+      ? `/${userUrlId}/${baseName}`
+      : `/${userUrlId}/${baseName.replace(/(\.[^.]+)?$/, `-${attempt}$1`)}`
+    const existing = await prisma.file.findUnique({
+      where: { urlPath: candidate },
+      select: { id: true }
+    })
+    if (!existing) {
+      return candidate
+    }
+    attempt++
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const auth = await requireAuth(request)
     if (auth.response) return auth.response
 
     const { searchParams } = new URL(request.url)
-    const dirPath = searchParams.get('path') || '/'
+    const dirPath = normalizePath(searchParams.get('path') || '/')
     const search = searchParams.get('search') || ''
     const sortBy = searchParams.get('sortBy') || 'newest'
     const page = parseInt(searchParams.get('page') || '1')
@@ -97,14 +113,17 @@ export async function GET(request: Request) {
 
     const rawFiles = entries
       .filter((e) => e.type === 'file')
-      .map((e) => ({
-        id: e.path,
-        name: e.name,
-        urlPath: `/api/files/serve?path=${encodeURIComponent(e.path)}`,
-        mimeType: getMimeType(e.name),
-        size: e.size,
-        uploadedAt: e.modifyTime.toISOString(),
-      }))
+      .map((e) => {
+        const normalizedPath = normalizePath(e.path)
+        return {
+          id: normalizedPath,
+          name: e.name,
+          urlPath: `/api/files/serve?path=${encodeURIComponent(normalizedPath)}`,
+          mimeType: getMimeType(e.name),
+          size: e.size,
+          uploadedAt: e.modifyTime.toISOString(),
+        }
+      })
 
     // Fetch database records for files to merge properties
     const filePaths = rawFiles.map((f) => f.id)
@@ -112,7 +131,7 @@ export async function GET(request: Request) {
       where: { path: { in: filePaths } },
       include: { user: { select: { role: true } } },
     })
-    const dbFileMap = new Map(dbFiles.map((f) => [f.path, f]))
+    const dbFileMap = new Map(dbFiles.map((f) => [normalizePath(f.path), f]))
 
     const filteredFiles = []
     const now = new Date()
@@ -132,7 +151,7 @@ export async function GET(request: Request) {
         if (dbFile.user?.role === 'ADMIN' && !isAdmin && !isOwner) {
           continue
         }
-        if (dbFile.visibility === 'PRIVATE' && !isOwner && !isAdmin) {
+        if (dbFile.visibility === 'PRIVATE' && !isOwner) {
           continue
         }
         if (dbFile.visibility === 'USERS_AND_ADMINS' && !auth.user) {
@@ -144,6 +163,7 @@ export async function GET(request: Request) {
 
         filteredFiles.push({
           ...file,
+          urlPath: dbFile.urlPath,
           userId: dbFile.userId,
           visibility: dbFile.visibility,
           hasPassword: !!dbFile.password,
@@ -198,7 +218,7 @@ export async function POST(req: Request) {
 
     const formData = await req.formData()
     const uploadedFile = formData.get('file') as File
-    const targetPath = (formData.get('path') as string) || '/'
+    const targetPath = normalizePath((formData.get('path') as string) || '/')
     const subpath = (formData.get('subpath') as string) || ''
     const fullpath = (formData.get('fullpath') as string) || ''
 
@@ -239,7 +259,7 @@ export async function POST(req: Request) {
     const bytes = await uploadedFile.arrayBuffer()
     const buffer = Buffer.from(bytes)
     const fileName = fullpath || (subpath ? `${subpath}/${uploadedFile.name}` : uploadedFile.name)
-    const remotePath = `${targetPath}/${fileName}`.replace(/\/+/g, '/')
+    const remotePath = normalizePath(`${targetPath}/${fileName}`)
 
     logger.info('upload targetPath=' + targetPath + ' subpath=' + subpath + ' fullpath=' + fullpath + ' fileName=' + uploadedFile.name + ' remotePath=' + remotePath)
 
@@ -259,7 +279,16 @@ export async function POST(req: Request) {
       expiresAt: parsedExpiresAt,
     })
 
-    const urlPath = `/api/files/serve?path=${encodeURIComponent(remotePath)}`
+    const userUrlId = auth.user!.urlId
+    const existingFile = await prisma.file.findUnique({
+      where: { path: remotePath },
+      select: { urlPath: true }
+    })
+
+    const urlPath = existingFile?.urlPath && !existingFile.urlPath.startsWith('/api/files/serve')
+      ? existingFile.urlPath
+      : await generateUniqueUrlPath(userUrlId, uploadedFile.name)
+
     await prisma.file.upsert({
       where: { path: remotePath },
       update: {
@@ -268,6 +297,7 @@ export async function POST(req: Request) {
         visibility,
         password: hashedPassword,
         expiresAt: parsedExpiresAt,
+        urlPath,
       },
       create: {
         path: remotePath,
@@ -287,7 +317,7 @@ export async function POST(req: Request) {
     })
 
     return apiResponse({
-      url: `/api/files/serve?path=${encodeURIComponent(remotePath)}`,
+      url: urlPath,
       name: uploadedFile.name,
       size: uploadedFile.size,
       type: uploadedFile.type,
@@ -307,11 +337,12 @@ export async function DELETE(req: Request) {
     if (auth.response) return auth.response
 
     const { searchParams } = new URL(req.url)
-    const filePath = searchParams.get('path')
+    const pathParam = searchParams.get('path')
 
-    if (!filePath) {
+    if (!pathParam) {
       return apiError('File path is required', HTTP_STATUS.BAD_REQUEST)
     }
+    const filePath = normalizePath(pathParam)
 
     if (auth.user?.role !== 'ADMIN') {
       const file = await prisma.file.findUnique({ where: { path: filePath } })
@@ -343,11 +374,12 @@ export async function PATCH(req: Request) {
     if (auth.response) return auth.response
 
     const body = await req.json()
-    const { path: filePath, name } = body
+    const { path: pathParam, name } = body
 
-    if (!filePath || !name) {
+    if (!pathParam || !name) {
       return apiError('File path and new name are required', HTTP_STATUS.BAD_REQUEST)
     }
+    const filePath = normalizePath(pathParam)
 
     if (auth.user?.role !== 'ADMIN') {
       const file = await prisma.file.findUnique({ where: { path: filePath } })
@@ -356,18 +388,27 @@ export async function PATCH(req: Request) {
       }
     }
 
-    const parentDir = filePath.substring(0, filePath.lastIndexOf('/') + 1)
-    const newPath = `${parentDir}${name}`
+    const parentDir = normalizePath(filePath.substring(0, filePath.lastIndexOf('/') + 1))
+    const newPath = normalizePath(`${parentDir}/${name}`)
 
     await rename(filePath, newPath)
 
     // Update path, name and urlPath in DB
+    const file = await prisma.file.findUnique({ where: { path: filePath } })
+    let newUrlPath = `/api/files/serve?path=${encodeURIComponent(newPath)}`
+    if (file) {
+      const owner = await prisma.user.findUnique({ where: { id: file.userId } })
+      if (owner) {
+        newUrlPath = await generateUniqueUrlPath(owner.urlId, name)
+      }
+    }
+
     await prisma.file.updateMany({
       where: { path: filePath },
       data: {
         path: newPath,
         name: name,
-        urlPath: `/api/files/serve?path=${encodeURIComponent(newPath)}`
+        urlPath: newUrlPath
       }
     })
 

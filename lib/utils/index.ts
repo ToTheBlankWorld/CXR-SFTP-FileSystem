@@ -1,4 +1,5 @@
 export { cn, formatBytes, bytesToMB, formatFileSize } from './formatting'
+export { normalizePath } from './path'
 
 export { updateProgress, clearProgress, getProgress } from './progress'
 

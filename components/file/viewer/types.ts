@@ -3,7 +3,7 @@ export interface FileViewerFile {
   name: string
   urlPath: string
   mimeType: string
-  visibility: 'PUBLIC' | 'PRIVATE'
+  visibility: 'PUBLIC' | 'PRIVATE' | 'USERS_AND_ADMINS' | 'USER_ONLY'
   password: string | null
   userId: string
 }

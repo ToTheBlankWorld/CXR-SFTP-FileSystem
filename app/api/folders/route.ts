@@ -5,6 +5,7 @@ import { prisma } from '@/lib/database/prisma'
 import { loggers } from '@/lib/logger'
 import { checkFolderAccess } from '@/lib/folders/access'
 import { hash } from 'bcryptjs'
+import { normalizePath } from '@/lib/utils'
 
 const logger = loggers.files
 
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
     if (auth.response) return auth.response
 
     const { searchParams } = new URL(request.url)
-    const parentPath = searchParams.get('parentId') || '/'
+    const parentPath = normalizePath(searchParams.get('parentId') || '/')
 
     // Decode folder passwords from request header
     const folderPasswordHeader = request.headers.get('x-folder-password')
@@ -50,7 +51,8 @@ export async function GET(request: Request) {
       entries
         .filter((e) => e.type === 'directory')
         .map(async (e) => {
-          const prefix = e.path.endsWith('/') ? e.path : `${e.path}/`
+          const normalizedFolderId = normalizePath(e.path)
+          const prefix = normalizedFolderId.endsWith('/') ? normalizedFolderId : `${normalizedFolderId}/`
           const fileAgg = await prisma.file.aggregate({
             _sum: { size: true },
             where: {
@@ -62,7 +64,7 @@ export async function GET(request: Request) {
           const size = fileAgg._sum.size || 0
 
           return {
-            id: e.path,
+            id: normalizedFolderId,
             name: e.name,
             userId: '',
             parentId: parentPath === '/' ? null : parentPath,
@@ -79,7 +81,7 @@ export async function GET(request: Request) {
     const dbFolders = await prisma.folder.findMany({
       where: { id: { in: folderIds } },
     })
-    const dbFolderMap = new Map(dbFolders.map((f) => [f.id, f]))
+    const dbFolderMap = new Map(dbFolders.map((f) => [normalizePath(f.id), f]))
 
     const filteredFolders = []
     const now = new Date()
@@ -94,9 +96,8 @@ export async function GET(request: Request) {
 
         // Visibility checks
         const isOwner = auth.user?.id === dbFolder.userId
-        const isAdmin = auth.user?.role === 'ADMIN'
 
-        if (dbFolder.visibility === 'PRIVATE' && !isOwner && !isAdmin) {
+        if (dbFolder.visibility === 'PRIVATE' && !isOwner) {
           continue
         }
         if (dbFolder.visibility === 'USERS_AND_ADMINS' && !auth.user) {
@@ -145,8 +146,8 @@ export async function POST(request: Request) {
     }
 
     const cleanName = name.trim()
-    const parentPath = parentId || '/'
-    const newPath = `${parentPath}/${cleanName}`.replace(/\/+/g, '/')
+    const parentPath = normalizePath(parentId || '/')
+    const newPath = normalizePath(`${parentPath}/${cleanName}`)
 
     // Verify parent folder permission
     const folderPasswordHeader = request.headers.get('x-folder-password')

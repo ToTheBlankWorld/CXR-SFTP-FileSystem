@@ -51,20 +51,16 @@ export function useFileActions(options: FileActionsOptions = {}) {
     const baseUrl = window.location.origin
     let url: string
 
-    if (options.fileId) {
-      url = `${baseUrl}/api/files/${options.fileId}/download`
-
-      if (options.verifiedPassword) {
-        url += `?password=${encodeURIComponent(options.verifiedPassword)}`
-      }
-    } else if (options.urlPath) {
-      url = `${baseUrl}${options.urlPath}/raw`
-
-      if (options.verifiedPassword) {
-        url += `?password=${encodeURIComponent(options.verifiedPassword)}`
-      }
+    if (options.urlPath) {
+      url = `${baseUrl}/api/files/serve?urlPath=${encodeURIComponent(options.urlPath)}&download=true`
+    } else if (options.fileId) {
+      url = `${baseUrl}/api/files/serve?path=${encodeURIComponent(options.fileId)}&download=true`
     } else {
       return
+    }
+
+    if (options.verifiedPassword) {
+      url += `&password=${encodeURIComponent(options.verifiedPassword)}`
     }
 
     const link = document.createElement('a')

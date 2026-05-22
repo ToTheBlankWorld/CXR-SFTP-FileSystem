@@ -3,8 +3,9 @@ export interface FileType {
   name: string
   urlPath: string
   mimeType: string
-  visibility: 'PUBLIC' | 'PRIVATE'
+  visibility: 'PUBLIC' | 'PRIVATE' | 'USERS_AND_ADMINS' | 'USER_ONLY'
   password: string | null
+  hasPassword?: boolean
   size: number
   uploadedAt: string
   views: number

@@ -5,13 +5,33 @@ import { getAuthenticatedUser } from '@/lib/auth/api-auth'
 import { prisma } from '@/lib/database/prisma'
 import { checkFolderAccess } from '@/lib/folders/access'
 import { checkFileAccess, FileAccessInfo } from '@/lib/files/access'
+import { normalizePath } from '@/lib/utils'
 
 const logger = loggers.files
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const filePath = searchParams.get('path')
+    const urlPath = searchParams.get('urlPath')
+    let filePath = searchParams.get('path')
+
+    let dbFile = null
+    if (urlPath) {
+      dbFile = await prisma.file.findUnique({
+        where: { urlPath },
+        include: { user: { select: { role: true } } },
+      })
+      if (!dbFile) {
+        return new Response(null, { status: 404 })
+      }
+      filePath = normalizePath(dbFile.path)
+    } else if (filePath) {
+      filePath = normalizePath(filePath)
+      dbFile = await prisma.file.findUnique({
+        where: { path: filePath },
+        include: { user: { select: { role: true } } },
+      })
+    }
 
     if (!filePath) {
       return new Response('File path required', { status: 400 })
@@ -58,12 +78,6 @@ export async function GET(request: Request) {
       return new Response(null, { status: 404 })
     }
 
-    // 2. Verify file permissions
-    const dbFile = await prisma.file.findUnique({
-      where: { path: filePath },
-      include: { user: { select: { role: true } } },
-    })
-
     const fileAccessInfo: FileAccessInfo = dbFile
       ? {
           visibility: dbFile.visibility,
@@ -79,6 +93,9 @@ export async function GET(request: Request) {
           uploaderRole: null,
           expiresAt: null,
         }
+
+    const checkOnly = searchParams.get('checkOnly') === 'true'
+    const isDirect = searchParams.get('direct') === 'true'
 
     const fileAccess = await checkFileAccess(
       fileAccessInfo,
@@ -96,9 +113,29 @@ export async function GET(request: Request) {
       return new Response(null, { status: 404 })
     }
 
+    if (checkOnly) {
+      return new Response(JSON.stringify({ allowed: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (isDirect) {
+      const passwordVal = searchParams.get('password')
+      const targetUrl = `/api/files/serve?path=${encodeURIComponent(filePath)}` + (passwordVal ? `&password=${encodeURIComponent(passwordVal)}` : '')
+      return new Response(JSON.stringify({ url: targetUrl }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
     const mimeType = getMimeType(info.name)
     const isVideo = mimeType.startsWith('video/')
     const range = request.headers.get('range')
+    const isDownload = searchParams.get('download') === 'true'
+    const contentDisposition = isDownload
+      ? `attachment; filename="${encodeURIComponent(info.name)}"`
+      : `inline; filename="${encodeURIComponent(info.name)}"`
 
     if (range) {
       const parts = range.replace(/bytes=/, '').split('-')
@@ -115,7 +152,7 @@ export async function GET(request: Request) {
           'Accept-Ranges': 'bytes',
           'Content-Length': chunkSize.toString(),
           'Content-Type': mimeType,
-          'Content-Disposition': `inline; filename="${encodeURIComponent(info.name)}"`,
+          'Content-Disposition': contentDisposition,
           'Content-Security-Policy': 'sandbox',
           'X-Content-Type-Options': 'nosniff',
           'Cache-Control': isVideo ? 'public, max-age=31536000' : 'no-cache',
@@ -128,7 +165,7 @@ export async function GET(request: Request) {
     return new Response(stream as unknown as ReadableStream, {
       headers: {
         'Content-Type': mimeType,
-        'Content-Disposition': `inline; filename="${encodeURIComponent(info.name)}"`,
+        'Content-Disposition': contentDisposition,
         'Content-Security-Policy': 'sandbox',
         'X-Content-Type-Options': 'nosniff',
         'Accept-Ranges': 'bytes',

@@ -45,7 +45,7 @@ export async function checkFileAccess(
     return { allowed: false, reason: 'private', status: 404 }
   }
 
-  if (file.visibility === 'PRIVATE' && !isOwner && !isAdmin) {
+  if (file.visibility === 'PRIVATE' && !isOwner) {
     return { allowed: false, reason: 'private', status: 404 }
   }
 

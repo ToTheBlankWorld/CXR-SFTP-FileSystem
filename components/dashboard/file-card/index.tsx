@@ -48,7 +48,10 @@ export function FileCard({ file: initialFile, onDelete }: FileCardProps) {
   const [permissionErrorMsg, setPermissionErrorMsg] = useState('')
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(file.urlPath)
+    const shareUrl = file.urlPath.startsWith('http')
+      ? file.urlPath
+      : `${window.location.origin}${file.urlPath}`
+    navigator.clipboard.writeText(shareUrl)
     toast({
       title: 'Link copied',
       description: 'File link has been copied to clipboard',
@@ -137,9 +140,15 @@ export function FileCard({ file: initialFile, onDelete }: FileCardProps) {
                     className="h-8 w-8 glass-hover"
                     asChild
                   >
-                    <a href={file.urlPath} download={file.name}>
-                      <Download className="h-4 w-4" />
-                    </a>
+                    {file.hasPassword ? (
+                      <Link href={file.urlPath}>
+                        <Download className="h-4 w-4" />
+                      </Link>
+                    ) : (
+                      <a href={`/api/files/serve?path=${encodeURIComponent(file.id)}&download=true`} download={file.name}>
+                        <Download className="h-4 w-4" />
+                      </a>
+                    )}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Download</TooltipContent>
