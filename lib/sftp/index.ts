@@ -71,6 +71,13 @@ async function withClient<T>(fn: (sftp: Client) => Promise<T>): Promise<T> {
 function resolvePath(...segments: string[]): string {
   const root = getSftpConfig().rootPath.replace(/\/$/, '')
   const joined = segments.join('/').replace(/\/+/g, '/')
+  
+  // Guard against path traversal attacks (both / and \)
+  const normalizedJoined = joined.replace(/\\/g, '/')
+  if (normalizedJoined.split('/').includes('..')) {
+    throw new Error('Path traversal attempt detected')
+  }
+
   if (!root) return joined
   const sep = joined.startsWith('/') ? '' : '/'
   return `${root}${sep}${joined}`.replace(/\/+/g, '/')

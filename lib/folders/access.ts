@@ -56,8 +56,10 @@ export async function checkFolderAccess(
     if (folder.visibility === 'USERS_AND_ADMINS' && !session?.user) {
       return { allowed: false, reason: 'private', status: 404 }
     }
-    if (folder.visibility === 'USER_ONLY' && !session?.user) {
-      return { allowed: false, reason: 'private', status: 404 }
+    if (folder.visibility === 'USER_ONLY') {
+      if (!session?.user || (isAdmin && !folderOwner)) {
+        return { allowed: false, reason: 'private', status: 404 }
+      }
     }
 
     // 3. Password check (applies to EVERYONE, including owner and admin)

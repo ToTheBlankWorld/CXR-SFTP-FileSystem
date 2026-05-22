@@ -53,8 +53,10 @@ export async function checkFileAccess(
     return { allowed: false, reason: 'private', status: 404 }
   }
 
-  if (file.visibility === 'USER_ONLY' && !session?.user) {
-    return { allowed: false, reason: 'private', status: 404 }
+  if (file.visibility === 'USER_ONLY') {
+    if (!session?.user || (isAdmin && !isOwner)) {
+      return { allowed: false, reason: 'private', status: 404 }
+    }
   }
 
   // 3. Password check (applies to EVERYONE including owner and admin)

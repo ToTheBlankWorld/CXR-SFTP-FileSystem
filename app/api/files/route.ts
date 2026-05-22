@@ -138,7 +138,7 @@ export async function GET(request: Request) {
         if (dbFile.visibility === 'USERS_AND_ADMINS' && !auth.user) {
           continue
         }
-        if (dbFile.visibility === 'USER_ONLY' && !auth.user) {
+        if (dbFile.visibility === 'USER_ONLY' && (!auth.user || (auth.user?.role === 'ADMIN' && !isOwner))) {
           continue
         }
 
