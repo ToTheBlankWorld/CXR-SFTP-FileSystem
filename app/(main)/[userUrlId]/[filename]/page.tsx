@@ -23,6 +23,8 @@ import { resolveFileUrlPath } from '@/lib/files/resolve'
 
 import { formatFileSize } from '@/lib/utils'
 
+import { FileVisibility } from '@prisma/client'
+
 export const dynamic = 'force-dynamic'
 
 interface FilePageProps {
@@ -34,7 +36,7 @@ interface PrismaFile {
   id: string
   name: string
   urlPath: string
-  visibility: 'PUBLIC' | 'PRIVATE'
+  visibility: FileVisibility
   password: string | null
   userId: string
   mimeType: string

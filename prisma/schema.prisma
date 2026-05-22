@@ -34,6 +34,7 @@ model File {
   size            Float
   visibility      FileVisibility @default(PUBLIC)
   uploadedAt      DateTime       @default(now())
+  expiresAt       DateTime?
   userId          String
   path            String         @unique
   isOcrProcessed  Boolean        @default(false)
@@ -51,16 +52,19 @@ model File {
 }
 
 model Folder {
-  id        String   @id @default(cuid())
-  name      String
-  userId    String
-  parentId  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  files     File[]
-  parent    Folder?  @relation("FolderParent", fields: [parentId], references: [id])
-  children  Folder[] @relation("FolderParent")
+  id         String         @id @default(cuid())
+  name       String
+  userId     String
+  parentId   String?
+  password   String?
+  visibility FileVisibility @default(PUBLIC)
+  expiresAt  DateTime?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  files      File[]
+  parent     Folder?        @relation("FolderParent", fields: [parentId], references: [id])
+  children   Folder[]       @relation("FolderParent")
 
   @@unique([name, userId, parentId])
 }
@@ -92,4 +96,6 @@ enum UserRole {
 enum FileVisibility {
   PUBLIC
   PRIVATE
+  USERS_AND_ADMINS
+  USER_ONLY
 }

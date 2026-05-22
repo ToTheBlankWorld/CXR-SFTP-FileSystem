@@ -3,10 +3,12 @@ import { z } from 'zod'
 export enum FileVisibility {
   PUBLIC = 'PUBLIC',
   PRIVATE = 'PRIVATE',
+  USERS_AND_ADMINS = 'USERS_AND_ADMINS',
+  USER_ONLY = 'USER_ONLY',
 }
 
 export const FileUploadSchema = z.object({
-  visibility: z.enum(['PUBLIC', 'PRIVATE']).optional().default('PUBLIC'),
+  visibility: z.enum(['PUBLIC', 'PRIVATE', 'USERS_AND_ADMINS', 'USER_ONLY']).optional().default('PUBLIC'),
   password: z.string().optional().nullable(),
 })
 
@@ -14,7 +16,7 @@ export type FileUploadRequest = z.infer<typeof FileUploadSchema>
 
 export const FileUploadFormDataSchema = z.object({
   file: z.instanceof(File, { message: 'No file provided' }),
-  visibility: z.enum(['PUBLIC', 'PRIVATE']).default('PUBLIC'),
+  visibility: z.enum(['PUBLIC', 'PRIVATE', 'USERS_AND_ADMINS', 'USER_ONLY']).default('PUBLIC'),
   password: z.string().optional().nullable(),
 })
 

@@ -1,10 +1,11 @@
 import { compare } from 'bcryptjs'
 
 export type FileAccessInfo = {
-  visibility: 'PUBLIC' | 'PRIVATE'
+  visibility: 'PUBLIC' | 'PRIVATE' | 'USERS_AND_ADMINS' | 'USER_ONLY'
   userId: string
   password: string | null
   uploaderRole?: string | null
+  expiresAt?: Date | string | null
 }
 
 export type SessionInfo = {
@@ -19,8 +20,8 @@ export type FileAccessAllowed = {
 
 export type FileAccessDenied = {
   allowed: false
-  reason: 'private' | 'password_required' | 'password_invalid'
-  status: 401 | 404
+  reason: 'private' | 'password_required' | 'password_invalid' | 'expired'
+  status: 401 | 403 | 404
 }
 
 export type FileAccessResult = FileAccessAllowed | FileAccessDenied
@@ -33,7 +34,13 @@ export async function checkFileAccess(
   const isOwner = session?.user?.id === file.userId
   const isAdmin = session?.user?.role === 'ADMIN'
 
-  // If the file was uploaded by an admin, only admins can access it (unless the current user is the owner)
+  // 1. Expiration check
+  if (file.expiresAt && new Date(file.expiresAt) < new Date()) {
+    return { allowed: false, reason: 'expired', status: 404 }
+  }
+
+  // 2. Visibility check
+  // Admin-uploaded file fallback: if uploader is admin, only admins can view it (unless isOwner)
   if (file.uploaderRole === 'ADMIN' && !isAdmin && !isOwner) {
     return { allowed: false, reason: 'private', status: 404 }
   }
@@ -42,7 +49,16 @@ export async function checkFileAccess(
     return { allowed: false, reason: 'private', status: 404 }
   }
 
-  if (file.password && !isOwner && !isAdmin) {
+  if (file.visibility === 'USERS_AND_ADMINS' && !session?.user) {
+    return { allowed: false, reason: 'private', status: 404 }
+  }
+
+  if (file.visibility === 'USER_ONLY' && !session?.user) {
+    return { allowed: false, reason: 'private', status: 404 }
+  }
+
+  // 3. Password check (applies to EVERYONE including owner and admin)
+  if (file.password) {
     if (!providedPassword) {
       return { allowed: false, reason: 'password_required', status: 401 }
     }

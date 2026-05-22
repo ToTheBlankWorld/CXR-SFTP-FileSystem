@@ -9,7 +9,7 @@ import type {
   PaginationInfo,
   SortOption,
 } from '@/types/components/file'
-import { ChevronRight, FolderPlus, Home, RefreshCw, Upload } from 'lucide-react'
+import { ChevronRight, FolderPlus, Home, RefreshCw, Upload, Lock } from 'lucide-react'
 
 import { FileCard } from '@/components/dashboard/file-card'
 import { FileCardSkeleton } from '@/components/dashboard/file-grid/file-card-skeleton'
@@ -22,6 +22,7 @@ import { SearchInput } from '@/components/dashboard/file-grid/search-input'
 import { FolderCard } from '@/components/dashboard/folder-card'
 import { EmptyPlaceholder } from '@/components/shared/empty-placeholder'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -50,6 +51,59 @@ export function FileGrid() {
   const [folderPath, setFolderPath] = useState<{ id: string; name: string }[]>([])
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
+
+  // Password protection states
+  const [folderPasswords, setFolderPasswords] = useState<Record<string, string>>({})
+  const [passwordRequired, setPasswordRequired] = useState(false)
+  const [folderPasswordInput, setFolderPasswordInput] = useState('')
+  const [folderPasswordError, setFolderPasswordError] = useState<string | null>(null)
+
+  // Load saved folder passwords from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('cxr_folder_passwords')
+    if (stored) {
+      try {
+        setFolderPasswords(JSON.parse(stored))
+      } catch (e) {
+        console.error('Failed to parse folder passwords', e)
+      }
+    }
+  }, [])
+
+  const handleUnlockFolder = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!folderPasswordInput.trim()) return
+
+    setIsLoading(true)
+    setFolderPasswordError(null)
+
+    try {
+      const nextPasswords = {
+        ...folderPasswords,
+        [currentPath]: folderPasswordInput,
+      }
+
+      const headers: Record<string, string> = {
+        'x-folder-password': encodeURIComponent(JSON.stringify(nextPasswords))
+      }
+
+      const testRes = await fetch(`/api/folders?parentId=${encodeURIComponent(currentPath)}`, { headers })
+
+      if (testRes.ok) {
+        setFolderPasswords(nextPasswords)
+        localStorage.setItem('cxr_folder_passwords', JSON.stringify(nextPasswords))
+        setPasswordRequired(false)
+        setFolderPasswordInput('')
+      } else {
+        const errData = await testRes.json().catch(() => ({}))
+        setFolderPasswordError(errData.error === 'password_invalid' ? 'Incorrect password. Please try again.' : 'Access denied.')
+      }
+    } catch {
+      setFolderPasswordError('An error occurred. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const { toast } = useToast()
 
@@ -131,8 +185,23 @@ export function FileGrid() {
     async function fetchData() {
       try {
         setIsLoading(true)
+        setPasswordRequired(false)
+        setFolderPasswordError(null)
 
-        const folderRes = await fetch(`/api/folders?parentId=${encodeURIComponent(currentPath)}`)
+        const headers: Record<string, string> = {}
+        if (Object.keys(folderPasswords).length > 0) {
+          headers['x-folder-password'] = encodeURIComponent(JSON.stringify(folderPasswords))
+        }
+
+        const folderRes = await fetch(`/api/folders?parentId=${encodeURIComponent(currentPath)}`, { headers })
+
+        if (folderRes.status === 401) {
+          setPasswordRequired(true)
+          setFolders([])
+          setFiles([])
+          return
+        }
+
         const folderData = folderRes.ok ? await folderRes.json() : null
         setFolders(Array.isArray(folderData?.data) ? folderData.data : [])
 
@@ -145,7 +214,15 @@ export function FileGrid() {
           ...(filters.types.length > 0 && { types: filters.types.join(',') }),
         })
 
-        const fileRes = await fetch(`/api/files?${fileParams}`)
+        const fileRes = await fetch(`/api/files?${fileParams}`, { headers })
+
+        if (fileRes.status === 401) {
+          setPasswordRequired(true)
+          setFolders([])
+          setFiles([])
+          return
+        }
+
         if (!fileRes.ok) throw new Error('Failed to fetch files')
         const apiResult = await fileRes.json()
 
@@ -166,7 +243,7 @@ export function FileGrid() {
     }
 
     fetchData()
-  }, [filters, currentPath])
+  }, [filters, currentPath, folderPasswords])
 
   const handleDelete = (fileId: string) => {
     setFiles((files) => files.filter((file) => file.id !== fileId))
@@ -178,6 +255,53 @@ export function FileGrid() {
   }
 
   const renderContent = () => {
+    if (passwordRequired) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 px-4 animate-in fade-in duration-500">
+          <Card className="w-full max-w-md p-8 border border-primary/20 bg-card/60 backdrop-blur-xl shadow-2xl relative overflow-hidden rounded-2xl">
+            <div className="absolute -top-10 -right-10 w-24 h-24 bg-primary/20 rounded-full blur-2xl animate-pulse" />
+            <div className="absolute -bottom-10 -left-10 w-24 h-24 bg-primary/20 rounded-full blur-2xl animate-pulse" />
+
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div className="p-4 rounded-full bg-primary/10 border border-primary/20 text-primary animate-bounce">
+                <Lock className="h-8 w-8" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-xl font-bold tracking-tight text-foreground">Password Protected</h3>
+                <p className="text-sm text-muted-foreground">
+                  This folder requires a password to open and access its contents.
+                </p>
+              </div>
+
+              <form onSubmit={handleUnlockFolder} className="w-full space-y-4 pt-4">
+                <div className="space-y-2 text-left">
+                  <Label htmlFor="folder-password" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">
+                    Enter Password
+                  </Label>
+                  <Input
+                    id="folder-password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={folderPasswordInput}
+                    onChange={(e) => setFolderPasswordInput(e.target.value)}
+                    className="w-full bg-background/50 border-border focus:border-primary text-center tracking-widest text-lg"
+                    autoFocus
+                  />
+                  {folderPasswordError && (
+                    <p className="text-xs text-destructive mt-1 font-medium">{folderPasswordError}</p>
+                  )}
+                </div>
+
+                <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-lg shadow-primary/20 transition-all duration-300">
+                  Unlock Directory
+                </Button>
+              </form>
+            </div>
+          </Card>
+        </div>
+      )
+    }
+
     if (isLoading) {
       return (
         <>

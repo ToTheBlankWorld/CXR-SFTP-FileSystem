@@ -10,12 +10,26 @@ import {
   FileIcon,
   FolderIcon,
   UploadIcon,
+  Settings2,
+  KeyRound,
+  Eye,
+  CalendarDays,
 } from 'lucide-react'
 import { useDropzone } from 'react-dropzone'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 import { useToast } from '@/hooks/use-toast'
 
@@ -114,6 +128,15 @@ export function UploadForm() {
   const [overallProgress, setOverallProgress] = useState<{ uploaded: number; total: number; failed: number } | null>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
 
+  // Advanced Options States
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [enablePassword, setEnablePassword] = useState(false)
+  const [passwordValue, setPasswordValue] = useState('')
+  const [enableVisibility, setEnableVisibility] = useState(false)
+  const [visibilityValue, setVisibilityValue] = useState<'PUBLIC' | 'PRIVATE' | 'USERS_AND_ADMINS' | 'USER_ONLY'>('PUBLIC')
+  const [enableExpiration, setEnableExpiration] = useState(false)
+  const [expirationValue, setExpirationValue] = useState('')
+
   const tree = useMemo(() => files.length > 0 ? buildTree(files) : null, [files])
 
   const selectedCount = useMemo(
@@ -204,6 +227,17 @@ export function UploadForm() {
             formData.append('fullpath', relPath)
           }
 
+          // Append access protection options if enabled
+          if (enablePassword && passwordValue) {
+            formData.append('password', passwordValue)
+          }
+          if (enableVisibility) {
+            formData.append('visibility', visibilityValue)
+          }
+          if (enableExpiration && expirationValue) {
+            formData.append('expiresAt', new Date(expirationValue).toISOString())
+          }
+
           await new Promise<void>((resolve, reject) => {
             const xhr = new XMLHttpRequest()
 
@@ -225,6 +259,13 @@ export function UploadForm() {
             xhr.addEventListener('error', () => reject(new Error('Network error')))
 
             xhr.open('POST', '/api/files')
+
+            // Pass unlocked passwords from localStorage
+            const storedPasswords = localStorage.getItem('cxr_folder_passwords')
+            if (storedPasswords) {
+              xhr.setRequestHeader('x-folder-password', encodeURIComponent(storedPasswords))
+            }
+
             xhr.send(formData)
           })
 
@@ -378,6 +419,129 @@ export function UploadForm() {
           onChange={onFolderFilesSelected}
         />
       </div>
+
+      {/* Advanced Settings Card */}
+      <Card className="overflow-hidden border border-border bg-card/60 backdrop-blur-md shadow-sm transition-all duration-300">
+        <button
+          type="button"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="flex w-full items-center justify-between p-4 hover:bg-muted/30 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Settings2 className="h-5 w-5 text-primary animate-pulse" />
+            <span className="font-semibold text-sm tracking-wide">Advanced Access Control Options</span>
+          </div>
+          {showAdvanced ? (
+            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform duration-200" />
+          )}
+        </button>
+
+        {showAdvanced && (
+          <div className="border-t border-border p-5 space-y-6 bg-muted/10 animate-in fade-in slide-in-from-top-4 duration-300">
+            {/* Password Protection */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                    <KeyRound className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Password Protection</Label>
+                    <p className="text-xs text-muted-foreground">Restrict file/folder opening with a password</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={enablePassword}
+                  onCheckedChange={setEnablePassword}
+                  className="data-[state=checked]:bg-primary"
+                />
+              </div>
+              {enablePassword && (
+                <div className="pl-9 animate-in zoom-in-95 duration-200">
+                  <Input
+                    type="password"
+                    placeholder="Enter folder/file password"
+                    value={passwordValue}
+                    onChange={(e) => setPasswordValue(e.target.value)}
+                    className="max-w-md bg-background border-primary/20 focus:border-primary"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Visibility Settings */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                    <Eye className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Visibility Restriction</Label>
+                    <p className="text-xs text-muted-foreground">Configure who is authorized to view this resource</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={enableVisibility}
+                  onCheckedChange={setEnableVisibility}
+                  className="data-[state=checked]:bg-primary"
+                />
+              </div>
+              {enableVisibility && (
+                <div className="pl-9 max-w-md animate-in zoom-in-95 duration-200">
+                  <Select
+                    value={visibilityValue}
+                    onValueChange={(val) => setVisibilityValue(val as 'PUBLIC' | 'PRIVATE' | 'USERS_AND_ADMINS' | 'USER_ONLY')}
+                  >
+                    <SelectTrigger className="bg-background border-primary/20 focus:border-primary">
+                      <SelectValue placeholder="Select visibility" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PUBLIC">Public (Visible to everyone)</SelectItem>
+                      <SelectItem value="USER_ONLY">Standard Users Only (Exclude Admins)</SelectItem>
+                      <SelectItem value="USERS_AND_ADMINS">Registered Users & Admins</SelectItem>
+                      <SelectItem value="PRIVATE">Private (Only Me)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            {/* Expiration Date */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                    <CalendarDays className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Auto Expiration</Label>
+                    <p className="text-xs text-muted-foreground">Delete or restrict access automatically after datetime</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={enableExpiration}
+                  onCheckedChange={setEnableExpiration}
+                  className="data-[state=checked]:bg-primary"
+                />
+              </div>
+              {enableExpiration && (
+                <div className="pl-9 animate-in zoom-in-95 duration-200">
+                  <Input
+                    type="datetime-local"
+                    value={expirationValue}
+                    min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                    onChange={(e) => setExpirationValue(e.target.value)}
+                    className="max-w-md bg-background border-primary/20 focus:border-primary text-foreground [color-scheme:dark]"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </Card>
 
       {tree && (
         <Card className="p-4 space-y-3">
