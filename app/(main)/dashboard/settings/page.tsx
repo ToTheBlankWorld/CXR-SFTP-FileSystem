@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
+import { useRouter } from 'next/navigation'
+
+import { useSession } from 'next-auth/react'
+
 import pkg from '@/package.json'
 import DOMPurify from 'dompurify'
 import { deepEqual } from 'fast-equals'
@@ -155,7 +159,17 @@ const isSafeUrl = (url: string | null): url is string => {
 }
 
 export default function SettingsPage() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
   const { toast } = useToast()
+
+  useEffect(() => {
+    if (status === 'loading') return
+    const role = session?.user?.role
+    if (!role || (role !== 'ADMIN' && role !== 'OWNER')) {
+      router.replace('/dashboard')
+    }
+  }, [session, status, router])
   const [savedConfig, setSavedConfig] = useState<FlareConfig | null>(null)
   const [workingConfig, setWorkingConfig] = useState<FlareConfig | null>(null)
   const [pendingFaviconFile, setPendingFaviconFile] = useState<File | null>(
