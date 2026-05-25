@@ -300,6 +300,10 @@ export function FolderCard({
                     className="h-8 w-8 glass-hover"
                     onClick={(e) => {
                       e.stopPropagation()
+                      if (!canEnterFolder) {
+                        setIsTeamAccessDeniedOpen(true)
+                        return
+                      }
                       const a = document.createElement('a')
                       a.href = `/api/folders/download/${folderPathSegment}`
                       a.download = `${folder.name}.tar`
@@ -313,7 +317,7 @@ export function FolderCard({
                 </TooltipTrigger>
                 <TooltipContent>Download</TooltipContent>
               </Tooltip>
-
+ 
               {(isOwnerRole || currentUserId === folder.userId) && (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -332,7 +336,7 @@ export function FolderCard({
                   <TooltipContent>Manage Team</TooltipContent>
                 </Tooltip>
               )}
-
+ 
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -341,6 +345,10 @@ export function FolderCard({
                     className="h-8 w-8 glass-hover"
                     onClick={(e) => {
                       e.stopPropagation()
+                      if (!canEnterFolder) {
+                        setIsTeamAccessDeniedOpen(true)
+                        return
+                      }
                       setNewName(folder.name)
                       setIsRenameOpen(true)
                     }}
@@ -358,6 +366,10 @@ export function FolderCard({
                     className="h-8 w-8 glass-hover"
                     onClick={(e) => {
                       e.stopPropagation()
+                      if (!canEnterFolder) {
+                        setIsTeamAccessDeniedOpen(true)
+                        return
+                      }
                       setIsDeleteOpen(true)
                     }}
                   >
