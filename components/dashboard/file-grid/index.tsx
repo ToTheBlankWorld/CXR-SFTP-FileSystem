@@ -37,7 +37,17 @@ import { useToast } from '@/hooks/use-toast'
 
 export function FileGrid() {
   const [files, setFiles] = useState<FileType[]>([])
-  const [folders, setFolders] = useState<{ id: string; name: string; fileCount: number; size?: number }[]>([])
+  const [folders, setFolders] = useState<
+    {
+      id: string
+      name: string
+      fileCount: number
+      size?: number
+      userId?: string
+      visibility?: 'PUBLIC' | 'PRIVATE' | 'USERS_AND_ADMINS' | 'USER_ONLY' | 'TEAM'
+      isMember?: boolean
+    }[]
+  >([])
   const [isLoading, setIsLoading] = useState(true)
   const [fileTypes] = useState<string[]>([])
   const [paginationInfo, setPaginationInfo] = useState<PaginationInfo>({
@@ -358,12 +368,14 @@ export function FileGrid() {
                   folder={{
                     id: folder.id,
                     name: folder.name,
-                    userId: '',
+                    userId: folder.userId || '',
                     parentId: currentPath === '/' ? null : currentPath,
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString(),
                     fileCount: folder.fileCount,
                     size: folder.size,
+                    visibility: folder.visibility,
+                    isMember: folder.isMember,
                   }}
                   onNavigate={navigateToFolder}
                   onDelete={handleDeleteFolder}

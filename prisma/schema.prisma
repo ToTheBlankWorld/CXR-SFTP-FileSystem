@@ -24,6 +24,7 @@ model User {
   shortenedUrls               ShortenedUrl[]
   files                       File[]
   folders                     Folder[]
+  folderMemberships           FolderMember[]
 }
 
 model File {
@@ -65,8 +66,22 @@ model Folder {
   files      File[]
   parent     Folder?        @relation("FolderParent", fields: [parentId], references: [id])
   children   Folder[]       @relation("FolderParent")
+  members    FolderMember[]
 
   @@unique([name, userId, parentId])
+}
+
+model FolderMember {
+  id        String   @id @default(cuid())
+  folderId  String
+  userId    String
+  createdAt DateTime @default(now())
+  folder    Folder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([folderId, userId])
+  @@index([folderId])
+  @@index([userId])
 }
 
 model ShortenedUrl {
@@ -99,4 +114,5 @@ enum FileVisibility {
   PRIVATE
   USERS_AND_ADMINS
   USER_ONLY
+  TEAM
 }

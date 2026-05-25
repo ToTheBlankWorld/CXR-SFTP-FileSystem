@@ -7,7 +7,7 @@ export type SessionInfo = {
 
 export type FolderAccessResult =
   | { allowed: true }
-  | { allowed: false; reason: 'private' | 'password_required' | 'password_invalid' | 'expired'; status: 401 | 403 | 404 }
+  | { allowed: false; reason: 'private' | 'password_required' | 'password_invalid' | 'expired' | 'team_only'; status: 401 | 403 | 404 }
 
 /**
  * Checks access to a folder by looking up all folders in its path hierarchy
@@ -39,7 +39,10 @@ export async function checkFolderAccess(
   const folders = await prisma.folder.findMany({
     where: { id: { in: prefixPaths } },
     orderBy: { id: 'asc' }, // Order root-to-leaf
+    include: { members: { select: { userId: true } } },
   })
+
+  const isOwnerRole = session?.user?.role === 'OWNER'
 
   // Check each folder segment in the hierarchy
   for (const folder of folders) {
@@ -59,6 +62,18 @@ export async function checkFolderAccess(
     if (folder.visibility === 'USER_ONLY') {
       if (!session?.user || (isAdmin && !folderOwner)) {
         return { allowed: false, reason: 'private', status: 404 }
+      }
+    }
+    if (folder.visibility === 'TEAM') {
+      // OWNER role and folder creator always have access
+      if (!isOwnerRole && !folderOwner) {
+        if (!session?.user) {
+          return { allowed: false, reason: 'team_only', status: 403 }
+        }
+        const isMember = folder.members.some((m) => m.userId === session.user!.id)
+        if (!isMember) {
+          return { allowed: false, reason: 'team_only', status: 403 }
+        }
       }
     }
 

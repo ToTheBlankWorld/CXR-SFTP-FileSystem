@@ -80,11 +80,13 @@ export async function GET(request: Request) {
     const folderIds = folders.map((f) => f.id)
     const dbFolders = await prisma.folder.findMany({
       where: { id: { in: folderIds } },
+      include: { members: { select: { userId: true } } },
     })
     const dbFolderMap = new Map(dbFolders.map((f) => [normalizePath(f.id), f]))
 
     const filteredFolders = []
     const now = new Date()
+    const isOwnerRole = auth.user?.role === 'OWNER'
 
     for (const folder of folders) {
       const dbFolder = dbFolderMap.get(folder.id)
@@ -107,12 +109,21 @@ export async function GET(request: Request) {
           continue
         }
 
+        // TEAM folders are visible to everyone but client decides access on click
+        const isMember =
+          dbFolder.visibility === 'TEAM'
+            ? isOwnerRole ||
+              isOwner ||
+              (!!auth.user && dbFolder.members.some((m) => m.userId === auth.user.id))
+            : true
+
         filteredFolders.push({
           ...folder,
           userId: dbFolder.userId,
           visibility: dbFolder.visibility,
           hasPassword: !!dbFolder.password,
           expiresAt: dbFolder.expiresAt ? dbFolder.expiresAt.toISOString() : null,
+          isMember,
         })
       } else {
         // Legacy folders have PUBLIC access and no protection settings
@@ -122,6 +133,7 @@ export async function GET(request: Request) {
           visibility: 'PUBLIC',
           hasPassword: false,
           expiresAt: null,
+          isMember: true,
         })
       }
     }

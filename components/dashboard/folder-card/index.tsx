@@ -1,20 +1,42 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
-import { FolderType } from '@/types/dto/folder'
-import { Download, Edit3, Folder, FolderOpen, ShieldAlert, Trash2 } from 'lucide-react'
+import { FolderType, FolderMemberInfo } from '@/types/dto/folder'
+import {
+  Crown,
+  Download,
+  Edit3,
+  Folder,
+  FolderOpen,
+  ShieldAlert,
+  Shield,
+  Trash2,
+  UserPlus,
+  UserX,
+  Users,
+} from 'lucide-react'
+import { useSession } from 'next-auth/react'
 
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Tooltip,
   TooltipContent,
@@ -32,6 +54,14 @@ interface FolderCardProps {
   onRename?: (folderId: string, newName: string) => void
 }
 
+interface SelectableUser {
+  id: string
+  name: string | null
+  email: string | null
+  role: string
+  image: string | null
+}
+
 export function FolderCard({
   folder,
   onNavigate,
@@ -39,11 +69,126 @@ export function FolderCard({
   onRename,
 }: FolderCardProps) {
   const { toast } = useToast()
+  const { data: session } = useSession()
+  const currentUserRole = session?.user?.role
+  const currentUserId = session?.user?.id
+  const isOwnerRole = currentUserRole === 'OWNER'
+
   const [isRenameOpen, setIsRenameOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [newName, setNewName] = useState(folder.name)
   const [isPermissionDeniedOpen, setIsPermissionDeniedOpen] = useState(false)
   const [permissionErrorMsg, setPermissionErrorMsg] = useState('')
+  const [isTeamAccessDeniedOpen, setIsTeamAccessDeniedOpen] = useState(false)
+
+  const [isTeamOpen, setIsTeamOpen] = useState(false)
+  const [members, setMembers] = useState<FolderMemberInfo[]>([])
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false)
+  const [availableUsers, setAvailableUsers] = useState<SelectableUser[]>([])
+  const [selectedUserId, setSelectedUserId] = useState<string>('')
+
+  const isTeamFolder = folder.visibility === 'TEAM'
+  const canEnterFolder =
+    !isTeamFolder ||
+    folder.isMember ||
+    isOwnerRole ||
+    currentUserId === folder.userId
+
+  const folderPathSegment = folder.id
+    .split('/')
+    .filter(Boolean)
+    .map(encodeURIComponent)
+    .join('/')
+
+  const handleCardClick = () => {
+    if (!canEnterFolder) {
+      setIsTeamAccessDeniedOpen(true)
+      return
+    }
+    onNavigate(folder.id, folder.name)
+  }
+
+  const fetchMembers = async () => {
+    setIsLoadingMembers(true)
+    try {
+      const res = await fetch(`/api/folders/${folderPathSegment}/members`)
+      if (!res.ok) throw new Error('Failed to load members')
+      const data = await res.json()
+      setMembers(data.data?.members || [])
+    } catch (err) {
+      toast({
+        title: 'Failed to load members',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsLoadingMembers(false)
+    }
+  }
+
+  const fetchAvailableUsers = async () => {
+    try {
+      const res = await fetch('/api/users?page=1&limit=100')
+      if (!res.ok) return
+      const data = await res.json()
+      setAvailableUsers(data.data || [])
+    } catch (err) {
+      console.error('Failed to load users', err)
+    }
+  }
+
+  useEffect(() => {
+    if (isTeamOpen) {
+      fetchMembers()
+      fetchAvailableUsers()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTeamOpen])
+
+  const handleAddMember = async () => {
+    if (!selectedUserId) return
+    try {
+      const res = await fetch(`/api/folders/${folderPathSegment}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: selectedUserId }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to add member')
+      }
+      setSelectedUserId('')
+      await fetchMembers()
+      toast({ title: 'Member added' })
+    } catch (err) {
+      toast({
+        title: 'Failed to add member',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const handleRemoveMember = async (userId: string) => {
+    try {
+      const res = await fetch(
+        `/api/folders/${folderPathSegment}/members?userId=${encodeURIComponent(userId)}`,
+        { method: 'DELETE' }
+      )
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to remove member')
+      }
+      await fetchMembers()
+      toast({ title: 'Member removed' })
+    } catch (err) {
+      toast({
+        title: 'Failed to remove member',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      })
+    }
+  }
 
   const handleRename = async () => {
     if (!newName.trim() || newName.trim() === folder.name) {
@@ -51,7 +196,6 @@ export function FolderCard({
       return
     }
     try {
-      const folderPathSegment = folder.id.split('/').filter(Boolean).map(encodeURIComponent).join('/')
       const res = await fetch(`/api/folders/${folderPathSegment}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -90,7 +234,6 @@ export function FolderCard({
 
   const handleDelete = async () => {
     try {
-      const folderPathSegment = folder.id.split('/').filter(Boolean).map(encodeURIComponent).join('/')
       const res = await fetch(`/api/folders/${folderPathSegment}`, { method: 'DELETE' })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -123,24 +266,27 @@ export function FolderCard({
     }
   }
 
+  const memberIds = new Set(members.map((m) => m.id))
+  const usersToShow = availableUsers.filter((u) => !memberIds.has(u.id) && u.id !== folder.userId)
+
   return (
     <>
       <Card
         className="group relative overflow-hidden bg-background/40 backdrop-blur-xl border-border/50 shadow-lg shadow-black/5 hover:shadow-xl hover:shadow-black/10 transition-all duration-300 hover:bg-background/60 cursor-pointer"
-        onClick={() => onNavigate(folder.id, folder.name)}
+        onClick={handleCardClick}
       >
         <div className="relative aspect-square bg-gradient-to-br from-blue-950/40 via-black/20 to-blue-900/20 flex items-center justify-center overflow-hidden transition-all duration-500 group-hover:from-blue-950/60 group-hover:to-blue-900/40">
-          {/* Glowing neon background blur */}
           <div className="absolute w-24 h-24 rounded-full bg-blue-500/15 blur-xl opacity-0 group-hover:opacity-100 transition-all duration-500" />
-          
-          {/* Animated glow shadow under the icon */}
           <Folder className="h-20 w-20 text-blue-500/40 absolute blur-md opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500" />
-          
-          {/* Closed Folder (Default state) */}
           <Folder className="h-20 w-20 text-blue-500/60 transition-all duration-500 ease-out group-hover:scale-110 group-hover:opacity-0" />
-          
-          {/* Open Folder (Hovered state) */}
           <FolderOpen className="h-20 w-20 text-blue-400/80 absolute opacity-0 scale-95 transition-all duration-500 ease-out group-hover:opacity-100 group-hover:scale-110" />
+
+          {isTeamFolder && (
+            <div className="absolute top-2 right-2 rounded-full bg-purple-500/20 ring-1 ring-purple-500/40 px-2 py-1 flex items-center gap-1 backdrop-blur-md">
+              <Shield className="h-3 w-3 text-purple-300" />
+              <span className="text-[10px] font-semibold text-purple-200 uppercase tracking-wider">Team</span>
+            </div>
+          )}
         </div>
 
         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-3">
@@ -154,7 +300,6 @@ export function FolderCard({
                     className="h-8 w-8 glass-hover"
                     onClick={(e) => {
                       e.stopPropagation()
-                      const folderPathSegment = folder.id.split('/').filter(Boolean).map(encodeURIComponent).join('/')
                       const a = document.createElement('a')
                       a.href = `/api/folders/download/${folderPathSegment}`
                       a.download = `${folder.name}.tar`
@@ -168,6 +313,26 @@ export function FolderCard({
                 </TooltipTrigger>
                 <TooltipContent>Download</TooltipContent>
               </Tooltip>
+
+              {isOwnerRole && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      className="h-8 w-8 glass-hover"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setIsTeamOpen(true)
+                      }}
+                    >
+                      <Users className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Manage Team</TooltipContent>
+                </Tooltip>
+              )}
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -275,6 +440,121 @@ export function FolderCard({
         </DialogContent>
       </Dialog>
 
+      <Dialog open={isTeamOpen} onOpenChange={setIsTeamOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Manage Team — {folder.name}
+            </DialogTitle>
+            <DialogDescription>
+              Only members listed below (plus the folder creator and OWNERs) can
+              access this folder. Adding the first member converts the folder
+              into a team folder; removing all members reverts it to public.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Add a member</Label>
+              <div className="flex gap-2">
+                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Select a user or admin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {usersToShow.length === 0 ? (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                        No users available to add
+                      </div>
+                    ) : (
+                      usersToShow.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          <div className="flex items-center gap-2">
+                            {u.role === 'OWNER' ? (
+                              <Crown className="h-3.5 w-3.5 text-yellow-500" />
+                            ) : (
+                              <Shield
+                                className={`h-3.5 w-3.5 ${u.role === 'ADMIN' ? 'text-primary' : 'text-muted-foreground'}`}
+                              />
+                            )}
+                            <span>{u.name || u.email}</span>
+                            <span className="text-xs text-muted-foreground">
+                              ({u.role})
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                <Button onClick={handleAddMember} disabled={!selectedUserId}>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Add
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Current members ({members.length})</Label>
+              {isLoadingMembers ? (
+                <p className="text-sm text-muted-foreground">Loading...</p>
+              ) : members.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-3 text-center border rounded-md bg-muted/30">
+                  No members yet. This folder is currently public.
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-[280px] overflow-y-auto">
+                  {members.map((m) => (
+                    <div
+                      key={m.id}
+                      className="flex items-center justify-between gap-3 px-3 py-2 rounded-md border bg-card/40"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={m.image || undefined} />
+                          <AvatarFallback>
+                            {(m.name || m.email || '?')
+                              .split(' ')
+                              .map((n) => n[0])
+                              .join('')
+                              .slice(0, 2)
+                              .toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium truncate flex items-center gap-1.5">
+                            {m.role === 'OWNER' ? (
+                              <Crown className="h-3.5 w-3.5 text-yellow-500 flex-shrink-0" />
+                            ) : (
+                              <Shield
+                                className={`h-3.5 w-3.5 flex-shrink-0 ${m.role === 'ADMIN' ? 'text-primary' : 'text-muted-foreground'}`}
+                              />
+                            )}
+                            {m.name || m.email}
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {m.email}
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveMember(m.id)}
+                        className="text-destructive hover:text-destructive flex-shrink-0"
+                      >
+                        <UserX className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isPermissionDeniedOpen} onOpenChange={setIsPermissionDeniedOpen}>
         <DialogContent className="sm:max-w-md border border-red-500/20 bg-black/90 backdrop-blur-xl shadow-[0_0_50px_rgba(239,68,68,0.15)] text-foreground">
           <DialogHeader className="flex flex-col items-center gap-4 text-center">
@@ -292,6 +572,37 @@ export function FolderCard({
                 variant="outline"
                 className="w-28 border-border/50 hover:bg-white/10"
                 onClick={() => setIsPermissionDeniedOpen(false)}
+              >
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isTeamAccessDeniedOpen} onOpenChange={setIsTeamAccessDeniedOpen}>
+        <DialogContent className="sm:max-w-md border border-red-500/30 bg-black/95 backdrop-blur-xl shadow-[0_0_60px_rgba(239,68,68,0.25)] text-foreground">
+          <DialogHeader className="flex flex-col items-center gap-4 text-center">
+            <div className="rounded-full bg-red-500/10 p-3 ring-2 ring-red-500/40">
+              <ShieldAlert className="h-7 w-7 text-red-500 animate-pulse" />
+            </div>
+            <DialogTitle className="text-xl font-bold tracking-tight text-red-100">
+              Restricted Team Folder
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4 text-center">
+            <p className="text-sm text-red-200/80 leading-relaxed font-medium">
+              You are not part of this team and not allowed to access this folder.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              If you believe you should have access, contact the owner of this
+              instance to be added to the <strong>{folder.name}</strong> team.
+            </p>
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="outline"
+                className="w-28 border-red-500/30 hover:bg-red-500/10 text-red-100"
+                onClick={() => setIsTeamAccessDeniedOpen(false)}
               >
                 Dismiss
               </Button>

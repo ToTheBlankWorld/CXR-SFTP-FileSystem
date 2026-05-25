@@ -1,7 +1,7 @@
 import { compare } from 'bcryptjs'
 
 export type FileAccessInfo = {
-  visibility: 'PUBLIC' | 'PRIVATE' | 'USERS_AND_ADMINS' | 'USER_ONLY'
+  visibility: 'PUBLIC' | 'PRIVATE' | 'USERS_AND_ADMINS' | 'USER_ONLY' | 'TEAM'
   userId: string
   password: string | null
   uploaderRole?: string | null
@@ -61,6 +61,13 @@ export async function checkFileAccess(
     if (!session?.user || (isAdmin && !isOwner)) {
       return { allowed: false, reason: 'private', status: 404 }
     }
+  }
+
+  // TEAM visibility at file level: team membership is tracked on folders.
+  // For a file directly marked TEAM, only the owner and admin-level roles can access
+  // (the folder-hierarchy check already enforces team access for files inside team folders).
+  if (file.visibility === 'TEAM' && !isOwner && !isAdmin) {
+    return { allowed: false, reason: 'private', status: 404 }
   }
 
   // 3. Password check (applies to EVERYONE including owner and admin)
