@@ -111,7 +111,7 @@ export function FolderCard({
   const fetchMembers = async () => {
     setIsLoadingMembers(true)
     try {
-      const res = await fetch(`/api/folders/${folderPathSegment}/members`)
+      const res = await fetch(`/api/folder-members/${folderPathSegment}`)
       if (!res.ok) throw new Error('Failed to load members')
       const data = await res.json()
       setMembers(data.data?.members || [])
@@ -148,7 +148,7 @@ export function FolderCard({
   const handleAddMember = async () => {
     if (!selectedUserId) return
     try {
-      const res = await fetch(`/api/folders/${folderPathSegment}/members`, {
+      const res = await fetch(`/api/folder-members/${folderPathSegment}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: selectedUserId }),
@@ -172,7 +172,7 @@ export function FolderCard({
   const handleRemoveMember = async (userId: string) => {
     try {
       const res = await fetch(
-        `/api/folders/${folderPathSegment}/members?userId=${encodeURIComponent(userId)}`,
+        `/api/folder-members/${folderPathSegment}?userId=${encodeURIComponent(userId)}`,
         { method: 'DELETE' }
       )
       if (!res.ok) {
