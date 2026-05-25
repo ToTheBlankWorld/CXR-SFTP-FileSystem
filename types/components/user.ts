@@ -3,7 +3,7 @@ export interface User {
   name: string | null
   email: string | null
   image: string | null
-  role: 'ADMIN' | 'USER'
+  role: 'OWNER' | 'ADMIN' | 'USER'
   fileCount: number
   shortUrlCount: number
 }
@@ -28,6 +28,6 @@ export interface UsersResponse {
 export interface UserFormData {
   name: string
   email: string
-  role: 'ADMIN' | 'USER'
+  role: 'OWNER' | 'ADMIN' | 'USER'
   quota?: number
 }

@@ -61,7 +61,7 @@ export default async function ProfilePage() {
               fileCount: 0,
               shortUrlCount: 0,
             }}
-            isAdmin={user.role === 'ADMIN'}
+            isAdmin={user.role === 'ADMIN' || user.role === 'OWNER'}
           />
         </div>
       </div>

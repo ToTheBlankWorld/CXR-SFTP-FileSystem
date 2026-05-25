@@ -9,7 +9,7 @@ export interface User {
   name: string
   email: string
   image: string | null
-  role: 'ADMIN' | 'USER'
+  role: 'OWNER' | 'ADMIN' | 'USER'
 }
 
 export interface PaginationData {
@@ -28,7 +28,7 @@ export interface UserFormData {
   name: string
   email: string
   password?: string
-  role: 'ADMIN' | 'USER'
+  role: 'OWNER' | 'ADMIN' | 'USER'
 }
 
 export interface UseUserManagementOptions {

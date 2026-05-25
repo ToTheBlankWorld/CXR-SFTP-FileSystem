@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 export enum UserRole {
+  OWNER = 'OWNER',
   ADMIN = 'ADMIN',
   USER = 'USER',
 }
@@ -10,7 +11,7 @@ export const UserSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
   password: z.string().min(8).optional(),
-  role: z.enum(['ADMIN', 'USER']),
+  role: z.enum(['OWNER', 'ADMIN', 'USER']),
 })
 
 export type CreateUserRequest = Omit<z.infer<typeof UserSchema>, 'id'>

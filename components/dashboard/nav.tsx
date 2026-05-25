@@ -39,6 +39,14 @@ const baseRoutes = [
 
 const adminRoutes = [
   {
+    href: '/dashboard/settings',
+    label: 'Settings',
+    icon: Settings,
+  },
+]
+
+const ownerRoutes = [
+  {
     href: '/dashboard/users',
     label: 'Users',
     icon: Users,
@@ -56,9 +64,11 @@ export function DashboardNav() {
   const { data: session } = useSession()
 
   const routes =
-    session?.user?.role === 'ADMIN'
-      ? [...baseRoutes, ...adminRoutes]
-      : baseRoutes
+    session?.user?.role === 'OWNER'
+      ? [...baseRoutes, ...ownerRoutes]
+      : session?.user?.role === 'ADMIN'
+        ? [...baseRoutes, ...adminRoutes]
+        : baseRoutes
 
   return (
     <nav className="flex items-center w-full">

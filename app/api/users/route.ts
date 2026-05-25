@@ -8,7 +8,7 @@ import {
   apiResponse,
   paginatedResponse,
 } from '@/lib/api/response'
-import { requireAdmin } from '@/lib/auth/api-auth'
+import { requireOwner } from '@/lib/auth/api-auth'
 import { prisma } from '@/lib/database/prisma'
 import { loggers } from '@/lib/logger'
 
@@ -16,7 +16,7 @@ const logger = loggers.users
 
 export async function GET(req: Request) {
   try {
-    const { response } = await requireAdmin()
+    const { response } = await requireOwner()
     if (response) return response
 
     const { searchParams } = new URL(req.url)
@@ -57,7 +57,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const { response } = await requireAdmin()
+    const { response } = await requireOwner()
     if (response) return response
 
     const json = await req.json()
@@ -124,7 +124,7 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   try {
-    const { response } = await requireAdmin()
+    const { response } = await requireOwner()
     if (response) return response
 
     const json = await req.json()

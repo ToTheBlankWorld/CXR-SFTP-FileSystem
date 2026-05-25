@@ -66,7 +66,7 @@ export async function POST(req: Request) {
           name: validatedData.admin.name,
           email: validatedData.admin.email,
           password: hashedPassword,
-          role: 'ADMIN',
+          role: 'OWNER',
           emailVerified: new Date(),
           urlId,
           uploadToken: uuidv4(),

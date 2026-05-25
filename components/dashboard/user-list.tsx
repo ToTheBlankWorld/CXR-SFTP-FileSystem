@@ -8,6 +8,7 @@ import {
   Archive,
   ChevronLeft,
   ChevronRight,
+  Crown,
   Edit2,
   Eye,
   EyeOff,
@@ -88,6 +89,8 @@ import { formatBytes } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { sanitizeUrl } from '@/lib/utils/url'
 
+import { useSession } from 'next-auth/react'
+
 import { useToast } from '@/hooks/use-toast'
 import { UserFormData, useUserManagement } from '@/hooks/use-user-management'
 
@@ -96,7 +99,7 @@ interface User {
   name: string
   email: string
   image: string | null
-  role: 'ADMIN' | 'USER'
+  role: 'OWNER' | 'ADMIN' | 'USER'
 }
 
 interface File {
@@ -311,6 +314,9 @@ function FileSettingsDialog({
 }
 
 export function UserList() {
+  const { data: session } = useSession()
+  const isOwner = session?.user?.role === 'OWNER'
+
   const {
     users,
     isLoading,
@@ -333,7 +339,7 @@ export function UserList() {
     name: '',
     email: '',
     password: '',
-    role: 'USER',
+    role: 'USER' as 'OWNER' | 'ADMIN' | 'USER',
   })
   const [fileFilters, setFileFilters] = useState<FileFilters>({
     search: '',
@@ -733,9 +739,13 @@ export function UserList() {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <Shield
-                      className={`h-4 w-4 ${user.role === 'ADMIN' ? 'text-primary' : 'text-muted-foreground'}`}
-                    />
+                    {user.role === 'OWNER' ? (
+                      <Crown className="h-4 w-4 text-yellow-500" />
+                    ) : (
+                      <Shield
+                        className={`h-4 w-4 ${user.role === 'ADMIN' ? 'text-primary' : 'text-muted-foreground'}`}
+                      />
+                    )}
                     {user.role}
                   </div>
                 </TableCell>
@@ -891,7 +901,7 @@ export function UserList() {
                 <Label htmlFor="role">Role</Label>
                 <Select
                   value={formData.role}
-                  onValueChange={(value: 'ADMIN' | 'USER') =>
+                  onValueChange={(value: 'OWNER' | 'ADMIN' | 'USER') =>
                     setFormData({ ...formData, role: value })
                   }
                 >
@@ -901,6 +911,9 @@ export function UserList() {
                   <SelectContent>
                     <SelectItem value="USER">User</SelectItem>
                     <SelectItem value="ADMIN">Admin</SelectItem>
+                    {editingUser && editingUser.role === 'OWNER' && (
+                      <SelectItem value="OWNER">Owner</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>

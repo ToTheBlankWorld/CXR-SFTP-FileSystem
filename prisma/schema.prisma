@@ -89,6 +89,7 @@ model Config {
 }
 
 enum UserRole {
+  OWNER
   ADMIN
   USER
 }
