@@ -29,19 +29,28 @@ async function ensureParentFoldersExist(
 
     const cleanParentId = parentPath === '/' ? null : normalizePath(parentPath)
 
-    await prisma.folder.upsert({
-      where: { id: currentPath },
-      update: {},
-      create: {
-        id: currentPath,
-        name: name,
-        userId: userId,
-        parentId: cleanParentId,
-        visibility: options.visibility,
-        password: options.passwordHash,
-        expiresAt: options.expiresAt,
-      },
-    })
+    try {
+      await prisma.folder.upsert({
+        where: { id: currentPath },
+        update: {},
+        create: {
+          id: currentPath,
+          name: name,
+          userId: userId,
+          parentId: cleanParentId,
+          visibility: options.visibility,
+          password: options.passwordHash,
+          expiresAt: options.expiresAt,
+        },
+      })
+    } catch (err: unknown) {
+      const error = err as { code?: string; message?: string }
+      if (error.code === 'P2002' || error.message?.includes('Unique constraint')) {
+        logger.info('Concurrent parent folder insertion swallowed: ' + currentPath)
+      } else {
+        throw err
+      }
+    }
   }
 }
 
