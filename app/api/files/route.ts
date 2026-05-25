@@ -146,9 +146,9 @@ export async function GET(request: Request) {
 
         // Visibility checks
         const isOwner = auth.user?.id === dbFile.userId
-        const isAdmin = auth.user?.role === 'ADMIN'
+        const isAdmin = auth.user?.role === 'ADMIN' || auth.user?.role === 'OWNER'
 
-        if (dbFile.user?.role === 'ADMIN' && !isAdmin && !isOwner) {
+        if ((dbFile.user?.role === 'ADMIN' || dbFile.user?.role === 'OWNER') && !isAdmin && !isOwner) {
           continue
         }
         if (dbFile.visibility === 'PRIVATE' && !isOwner) {
@@ -157,7 +157,7 @@ export async function GET(request: Request) {
         if (dbFile.visibility === 'USERS_AND_ADMINS' && !auth.user) {
           continue
         }
-        if (dbFile.visibility === 'USER_ONLY' && (!auth.user || (auth.user?.role === 'ADMIN' && !isOwner))) {
+        if (dbFile.visibility === 'USER_ONLY' && (!auth.user || (isAdmin && !isOwner))) {
           continue
         }
 
@@ -231,7 +231,7 @@ export async function POST(req: Request) {
       return apiError('No file provided', HTTP_STATUS.BAD_REQUEST)
     }
 
-    if (auth.user?.role !== 'ADMIN') {
+    if (auth.user?.role !== 'ADMIN' && auth.user?.role !== 'OWNER') {
       const config = await (await import('@/lib/config')).getConfig()
       const maxSize = config.settings.general.maxUploadSize
       if (uploadedFile.size > maxSize) {
@@ -344,7 +344,7 @@ export async function DELETE(req: Request) {
     }
     const filePath = normalizePath(pathParam)
 
-    if (auth.user?.role !== 'ADMIN') {
+    if (auth.user?.role !== 'ADMIN' && auth.user?.role !== 'OWNER') {
       const file = await prisma.file.findUnique({ where: { path: filePath } })
       if (!file || file.userId !== auth.user.id) {
         return apiError("You don't have permission to modify or delete this file", HTTP_STATUS.FORBIDDEN)
@@ -381,7 +381,7 @@ export async function PATCH(req: Request) {
     }
     const filePath = normalizePath(pathParam)
 
-    if (auth.user?.role !== 'ADMIN') {
+    if (auth.user?.role !== 'ADMIN' && auth.user?.role !== 'OWNER') {
       const file = await prisma.file.findUnique({ where: { path: filePath } })
       if (!file || file.userId !== auth.user.id) {
         return apiError("You don't have permission to modify or delete this file", HTTP_STATUS.FORBIDDEN)

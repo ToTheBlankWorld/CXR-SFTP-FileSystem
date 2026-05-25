@@ -103,7 +103,7 @@ export async function GET(request: Request) {
         if (dbFolder.visibility === 'USERS_AND_ADMINS' && !auth.user) {
           continue
         }
-        if (dbFolder.visibility === 'USER_ONLY' && (!auth.user || (auth.user.role === 'ADMIN' && !isOwner))) {
+        if (dbFolder.visibility === 'USER_ONLY' && (!auth.user || ((auth.user.role === 'ADMIN' || auth.user.role === 'OWNER') && !isOwner))) {
           continue
         }
 

@@ -19,7 +19,7 @@ export async function checkFolderAccess(
   providedPasswords?: Record<string, string> | string | null
 ): Promise<FolderAccessResult> {
   const isOwner = (userId: string) => session?.user?.id === userId
-  const isAdmin = session?.user?.role === 'ADMIN'
+  const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'OWNER'
 
   // Normalize path and generate prefix segments
   const cleanPath = ('/' + folderPath).replace(/\/+/g, '/').replace(/\/$/, '')

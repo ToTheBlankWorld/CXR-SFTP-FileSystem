@@ -32,7 +32,7 @@ export async function checkFileAccess(
   providedPassword?: string | null
 ): Promise<FileAccessResult> {
   const isOwner = session?.user?.id === file.userId
-  const isAdmin = session?.user?.role === 'ADMIN'
+  const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'OWNER'
 
   // 1. Expiration check
   if (file.expiresAt && new Date(file.expiresAt) < new Date()) {
@@ -40,8 +40,12 @@ export async function checkFileAccess(
   }
 
   // 2. Visibility check
-  // Admin-uploaded file fallback: if uploader is admin, only admins can view it (unless isOwner)
-  if (file.uploaderRole === 'ADMIN' && !isAdmin && !isOwner) {
+  // Admin-uploaded file fallback: if uploader is admin/owner, only admin-level roles can view it (unless isOwner)
+  if (
+    (file.uploaderRole === 'ADMIN' || file.uploaderRole === 'OWNER') &&
+    !isAdmin &&
+    !isOwner
+  ) {
     return { allowed: false, reason: 'private', status: 404 }
   }
 
