@@ -160,6 +160,9 @@ export async function GET(request: Request) {
         if (dbFile.visibility === 'USER_ONLY' && (!auth.user || (isAdmin && !isOwner))) {
           continue
         }
+        if (dbFile.visibility === 'TEAM' && !isOwner && !isAdmin) {
+          continue
+        }
 
         filteredFiles.push({
           ...file,

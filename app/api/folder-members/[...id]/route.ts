@@ -1,5 +1,5 @@
 import { HTTP_STATUS, apiError, apiResponse } from '@/lib/api/response'
-import { requireOwner } from '@/lib/auth/api-auth'
+import { requireAuth } from '@/lib/auth/api-auth'
 import { prisma } from '@/lib/database/prisma'
 import { loggers } from '@/lib/logger'
 import { normalizePath } from '@/lib/utils'
@@ -7,12 +7,12 @@ import { normalizePath } from '@/lib/utils'
 const logger = loggers.files
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string[] }> }
 ) {
   try {
-    const { response } = await requireOwner()
-    if (response) return response
+    const auth = await requireAuth(request)
+    if (auth.response) return auth.response
 
     const { id } = await params
     const folderPath = normalizePath('/' + id.map(decodeURIComponent).join('/'))
@@ -33,6 +33,13 @@ export async function GET(
 
     if (!folder) {
       return apiError('Folder not found', HTTP_STATUS.NOT_FOUND)
+    }
+
+    const isOwner = auth.user.id === folder.userId
+    const isSystemOwner = auth.user.role === 'OWNER'
+
+    if (!isOwner && !isSystemOwner) {
+      return apiError('Unauthorized', HTTP_STATUS.UNAUTHORIZED)
     }
 
     return apiResponse({
@@ -59,22 +66,29 @@ export async function POST(
   { params }: { params: Promise<{ id: string[] }> }
 ) {
   try {
-    const { response } = await requireOwner()
-    if (response) return response
+    const auth = await requireAuth(request)
+    if (auth.response) return auth.response
 
     const { id } = await params
     const folderPath = normalizePath('/' + id.map(decodeURIComponent).join('/'))
+
+    const folder = await prisma.folder.findUnique({ where: { id: folderPath } })
+    if (!folder) {
+      return apiError('Folder not found', HTTP_STATUS.NOT_FOUND)
+    }
+
+    const isOwner = auth.user.id === folder.userId
+    const isSystemOwner = auth.user.role === 'OWNER'
+
+    if (!isOwner && !isSystemOwner) {
+      return apiError('Unauthorized', HTTP_STATUS.UNAUTHORIZED)
+    }
 
     const body = await request.json()
     const { userId } = body
 
     if (!userId || typeof userId !== 'string') {
       return apiError('userId is required', HTTP_STATUS.BAD_REQUEST)
-    }
-
-    const folder = await prisma.folder.findUnique({ where: { id: folderPath } })
-    if (!folder) {
-      return apiError('Folder not found', HTTP_STATUS.NOT_FOUND)
     }
 
     const user = await prisma.user.findUnique({ where: { id: userId } })
@@ -108,11 +122,23 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string[] }> }
 ) {
   try {
-    const { response } = await requireOwner()
-    if (response) return response
+    const auth = await requireAuth(request)
+    if (auth.response) return auth.response
 
     const { id } = await params
     const folderPath = normalizePath('/' + id.map(decodeURIComponent).join('/'))
+
+    const folder = await prisma.folder.findUnique({ where: { id: folderPath } })
+    if (!folder) {
+      return apiError('Folder not found', HTTP_STATUS.NOT_FOUND)
+    }
+
+    const isOwner = auth.user.id === folder.userId
+    const isSystemOwner = auth.user.role === 'OWNER'
+
+    if (!isOwner && !isSystemOwner) {
+      return apiError('Unauthorized', HTTP_STATUS.UNAUTHORIZED)
+    }
 
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')

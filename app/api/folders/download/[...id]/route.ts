@@ -3,6 +3,8 @@ import { PassThrough, Readable } from 'stream'
 import { getFileStream, listAllFilesRecursive } from '@/lib/sftp'
 import { requireAuth } from '@/lib/auth/api-auth'
 import { loggers } from '@/lib/logger'
+import { checkFolderAccess } from '@/lib/folders/access'
+import { normalizePath } from '@/lib/utils'
 
 const logger = loggers.files
 
@@ -15,7 +17,35 @@ export async function GET(
     if (auth.response) return auth.response
 
     const { id } = await params
-    const folderPath = ('/' + id.map(decodeURIComponent).join('/')).replace(/\/+/g, '/')
+    const folderPath = normalizePath('/' + id.map(decodeURIComponent).join('/'))
+
+    const folderPasswordHeader = request.headers.get('x-folder-password')
+    const { searchParams } = new URL(request.url)
+    const passwordParam = searchParams.get('password')
+    let providedPasswords: Record<string, string> | string | null = null
+
+    if (folderPasswordHeader) {
+      try {
+        const decoded = decodeURIComponent(folderPasswordHeader)
+        providedPasswords = JSON.parse(decoded)
+      } catch {
+        providedPasswords = decodeURIComponent(folderPasswordHeader)
+      }
+    }
+    if (!providedPasswords && passwordParam) {
+      providedPasswords = passwordParam
+    }
+
+    const accessResult = await checkFolderAccess(folderPath, auth, providedPasswords)
+    if (!accessResult.allowed) {
+      if (accessResult.reason === 'password_required' || accessResult.reason === 'password_invalid') {
+        return new Response(JSON.stringify({ error: accessResult.reason }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      return new Response(null, { status: 404 })
+    }
 
     const files = await listAllFilesRecursive(folderPath)
     if (files.length === 0) {

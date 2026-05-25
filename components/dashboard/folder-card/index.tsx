@@ -314,7 +314,7 @@ export function FolderCard({
                 <TooltipContent>Download</TooltipContent>
               </Tooltip>
 
-              {isOwnerRole && (
+              {(isOwnerRole || currentUserId === folder.userId) && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
