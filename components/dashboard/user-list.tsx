@@ -89,8 +89,6 @@ import { formatBytes } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { sanitizeUrl } from '@/lib/utils/url'
 
-import { useSession } from 'next-auth/react'
-
 import { useToast } from '@/hooks/use-toast'
 import { UserFormData, useUserManagement } from '@/hooks/use-user-management'
 
@@ -314,9 +312,6 @@ function FileSettingsDialog({
 }
 
 export function UserList() {
-  const { data: session } = useSession()
-  const isOwner = session?.user?.role === 'OWNER'
-
   const {
     users,
     isLoading,
