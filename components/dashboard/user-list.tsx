@@ -670,14 +670,6 @@ export function UserList() {
 
   const handleDeleteUser = async (userId: string) => {
     try {
-      const invalidateResponse = await fetch(`/api/users/${userId}/sessions`, {
-        method: 'DELETE',
-      })
-
-      if (!invalidateResponse.ok) {
-        throw new Error('Failed to invalidate user sessions')
-      }
-
       await deleteUser(userId)
       setIsDeleteDialogOpen(false)
       setUserToDelete(null)
@@ -906,9 +898,7 @@ export function UserList() {
                   <SelectContent>
                     <SelectItem value="USER">User</SelectItem>
                     <SelectItem value="ADMIN">Admin</SelectItem>
-                    {editingUser && editingUser.role === 'OWNER' && (
-                      <SelectItem value="OWNER">Owner</SelectItem>
-                    )}
+                    <SelectItem value="OWNER">Owner</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
