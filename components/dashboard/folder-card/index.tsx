@@ -86,6 +86,8 @@ export function FolderCard({
   const [isLoadingMembers, setIsLoadingMembers] = useState(false)
   const [availableUsers, setAvailableUsers] = useState<SelectableUser[]>([])
   const [selectedUserId, setSelectedUserId] = useState<string>('')
+  const [teamLeaderId, setTeamLeaderId] = useState<string | null>(null)
+  const [ownerInfo, setOwnerInfo] = useState<SelectableUser | null>(null)
 
   const isTeamFolder = folder.visibility === 'TEAM'
   const canEnterFolder =
@@ -115,6 +117,8 @@ export function FolderCard({
       if (!res.ok) throw new Error('Failed to load members')
       const data = await res.json()
       setMembers(data.data?.members || [])
+      setTeamLeaderId(data.data?.teamLeaderId || null)
+      setOwnerInfo(data.data?.owner || null)
     } catch (err) {
       toast({
         title: 'Failed to load members',
@@ -184,6 +188,29 @@ export function FolderCard({
     } catch (err) {
       toast({
         title: 'Failed to remove member',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const handleSetTeamLeader = async (leaderId: string) => {
+    try {
+      const targetLeaderId = leaderId === 'none' ? null : leaderId
+      const res = await fetch(`/api/folder-members/${folderPathSegment}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamLeaderId: targetLeaderId }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to update team leader')
+      }
+      setTeamLeaderId(targetLeaderId)
+      toast({ title: 'Team leader updated' })
+    } catch (err) {
+      toast({
+        title: 'Failed to update team leader',
         description: err instanceof Error ? err.message : 'Unknown error',
         variant: 'destructive',
       })
@@ -507,7 +534,50 @@ export function FolderCard({
               </div>
             </div>
 
-            <div className="space-y-2">
+            {members.length > 0 && (
+              <div className="space-y-2 border-t pt-4">
+                <Label htmlFor="team-leader-select" className="flex items-center gap-1.5 font-medium">
+                  <Crown className="h-4 w-4 text-yellow-500" />
+                  Team Leader
+                </Label>
+                <div className="flex gap-2">
+                  <Select
+                    value={teamLeaderId || 'none'}
+                    onValueChange={handleSetTeamLeader}
+                  >
+                    <SelectTrigger className="w-full bg-background/50 border-border/50" id="team-leader-select">
+                      <SelectValue placeholder="Select team leader" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Team Leader (Default permissions)</SelectItem>
+                      {ownerInfo && (
+                        <SelectItem value={ownerInfo.id}>
+                          <div className="flex items-center gap-2">
+                            <Crown className="h-3.5 w-3.5 text-yellow-500" />
+                            <span>{ownerInfo.name || ownerInfo.email} (Owner)</span>
+                          </div>
+                        </SelectItem>
+                      )}
+                      {members
+                        .filter((m) => m.id !== ownerInfo?.id)
+                        .map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            <div className="flex items-center gap-2">
+                              <Shield className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span>{m.name || m.email} (Member)</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  If selected, only the team leader (plus system OWNERs/ADMINs) can rename or delete this folder.
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-2 border-t pt-4">
               <Label>Current members ({members.length})</Label>
               {isLoadingMembers ? (
                 <p className="text-sm text-muted-foreground">Loading...</p>
@@ -517,6 +587,35 @@ export function FolderCard({
                 </p>
               ) : (
                 <div className="space-y-2 max-h-[280px] overflow-y-auto">
+                  {teamLeaderId === ownerInfo?.id && ownerInfo && (
+                    <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-md border border-yellow-500/20 bg-yellow-500/5">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={ownerInfo.image || undefined} />
+                          <AvatarFallback>
+                            {(ownerInfo.name || ownerInfo.email || '?')
+                              .split(' ')
+                              .map((n) => n[0])
+                              .join('')
+                              .slice(0, 2)
+                              .toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium truncate flex items-center gap-1.5">
+                            <Crown className="h-3.5 w-3.5 text-yellow-500 flex-shrink-0" />
+                            <span>{ownerInfo.name || ownerInfo.email}</span>
+                            <span className="px-1.5 py-0.5 rounded bg-yellow-500/10 text-[9px] font-bold text-yellow-500 border border-yellow-500/20 uppercase tracking-wider">
+                              Leader
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {ownerInfo.email} (Owner)
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {members.map((m) => (
                     <div
                       key={m.id}
@@ -543,7 +642,12 @@ export function FolderCard({
                                 className={`h-3.5 w-3.5 flex-shrink-0 ${m.role === 'ADMIN' ? 'text-primary' : 'text-muted-foreground'}`}
                               />
                             )}
-                            {m.name || m.email}
+                            <span>{m.name || m.email}</span>
+                            {m.id === teamLeaderId && (
+                              <span className="px-1.5 py-0.5 rounded bg-yellow-500/10 text-[9px] font-bold text-yellow-500 border border-yellow-500/20 uppercase tracking-wider">
+                                Leader
+                              </span>
+                            )}
                           </div>
                           <div className="text-xs text-muted-foreground truncate">
                             {m.email}

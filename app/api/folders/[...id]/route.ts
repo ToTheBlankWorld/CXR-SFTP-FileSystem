@@ -25,9 +25,19 @@ export async function PATCH(
     }
 
     const folder = await prisma.folder.findUnique({ where: { id: folderPath } })
+    if (!folder) {
+      return apiError('Folder not found', HTTP_STATUS.NOT_FOUND)
+    }
+
     if (auth.user?.role !== 'ADMIN' && auth.user?.role !== 'OWNER') {
-      if (!folder || folder.userId !== auth.user.id) {
-        return apiError("You don't have permission to modify or delete this folder", HTTP_STATUS.FORBIDDEN)
+      if (folder.teamLeaderId) {
+        if (folder.teamLeaderId !== auth.user.id) {
+          return apiError("Only the Team Leader has permission to modify or delete this folder", HTTP_STATUS.FORBIDDEN)
+        }
+      } else {
+        if (folder.userId !== auth.user.id) {
+          return apiError("You don't have permission to modify or delete this folder", HTTP_STATUS.FORBIDDEN)
+        }
       }
     }
 
@@ -108,9 +118,19 @@ export async function DELETE(
     const folderPath = normalizePath('/' + id.map(decodeURIComponent).join('/'))
 
     const folder = await prisma.folder.findUnique({ where: { id: folderPath } })
+    if (!folder) {
+      return apiError('Folder not found', HTTP_STATUS.NOT_FOUND)
+    }
+
     if (auth.user?.role !== 'ADMIN' && auth.user?.role !== 'OWNER') {
-      if (!folder || folder.userId !== auth.user.id) {
-        return apiError("You don't have permission to modify or delete this folder", HTTP_STATUS.FORBIDDEN)
+      if (folder.teamLeaderId) {
+        if (folder.teamLeaderId !== auth.user.id) {
+          return apiError("Only the Team Leader has permission to modify or delete this folder", HTTP_STATUS.FORBIDDEN)
+        }
+      } else {
+        if (folder.userId !== auth.user.id) {
+          return apiError("You don't have permission to modify or delete this folder", HTTP_STATUS.FORBIDDEN)
+        }
       }
     }
 

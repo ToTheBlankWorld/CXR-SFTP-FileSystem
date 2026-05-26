@@ -20,6 +20,9 @@ export async function GET(
     const folder = await prisma.folder.findUnique({
       where: { id: folderPath },
       include: {
+        user: {
+          select: { id: true, name: true, email: true, role: true, image: true },
+        },
         members: {
           include: {
             user: {
@@ -46,6 +49,14 @@ export async function GET(
       folderId: folder.id,
       visibility: folder.visibility,
       ownerId: folder.userId,
+      teamLeaderId: folder.teamLeaderId,
+      owner: folder.user ? {
+        id: folder.user.id,
+        name: folder.user.name,
+        email: folder.user.email,
+        role: folder.user.role,
+        image: folder.user.image,
+      } : null,
       members: folder.members.map((m) => ({
         id: m.user.id,
         name: m.user.name,
@@ -166,5 +177,51 @@ export async function DELETE(
   } catch (error) {
     logger.error('Error removing folder member', error as Error)
     return apiError('Failed to remove member', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+  }
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string[] }> }
+) {
+  try {
+    const auth = await requireAuth(request)
+    if (auth.response) return auth.response
+
+    const { id } = await params
+    const folderPath = normalizePath('/' + id.map(decodeURIComponent).join('/'))
+
+    const folder = await prisma.folder.findUnique({ where: { id: folderPath } })
+    if (!folder) {
+      return apiError('Folder not found', HTTP_STATUS.NOT_FOUND)
+    }
+
+    const isOwner = auth.user.id === folder.userId
+    const isSystemOwner = auth.user.role === 'OWNER'
+    const isSystemAdmin = auth.user.role === 'ADMIN'
+
+    if (!isOwner && !isSystemOwner && !isSystemAdmin) {
+      return apiError('Unauthorized', HTTP_STATUS.UNAUTHORIZED)
+    }
+
+    const body = await request.json()
+    const { teamLeaderId } = body
+
+    if (teamLeaderId) {
+      const leaderExists = await prisma.user.findUnique({ where: { id: teamLeaderId } })
+      if (!leaderExists) {
+        return apiError('Selected user not found', HTTP_STATUS.NOT_FOUND)
+      }
+    }
+
+    await prisma.folder.update({
+      where: { id: folderPath },
+      data: { teamLeaderId: teamLeaderId || null },
+    })
+
+    return apiResponse({ success: true })
+  } catch (error) {
+    logger.error('Error updating team leader', error as Error)
+    return apiError('Failed to update team leader', HTTP_STATUS.INTERNAL_SERVER_ERROR)
   }
 }

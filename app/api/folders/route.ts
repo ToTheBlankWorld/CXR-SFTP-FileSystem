@@ -124,6 +124,7 @@ export async function GET(request: Request) {
           hasPassword: !!dbFolder.password,
           expiresAt: dbFolder.expiresAt ? dbFolder.expiresAt.toISOString() : null,
           isMember,
+          teamLeaderId: dbFolder.teamLeaderId,
         })
       } else {
         // Legacy folders have PUBLIC access and no protection settings
@@ -134,6 +135,7 @@ export async function GET(request: Request) {
           hasPassword: false,
           expiresAt: null,
           isMember: true,
+          teamLeaderId: null,
         })
       }
     }

@@ -9,6 +9,7 @@ export interface FolderType {
   size?: number
   visibility?: 'PUBLIC' | 'PRIVATE' | 'USERS_AND_ADMINS' | 'USER_ONLY' | 'TEAM'
   isMember?: boolean
+  teamLeaderId?: string | null
 }
 
 export interface FolderMemberInfo {
@@ -24,6 +25,14 @@ export interface FolderMembersResponse {
   folderId: string
   visibility: string
   ownerId: string
+  teamLeaderId?: string | null
+  owner?: {
+    id: string
+    name: string | null
+    email: string | null
+    role: string
+    image: string | null
+  } | null
   members: FolderMemberInfo[]
 }
 

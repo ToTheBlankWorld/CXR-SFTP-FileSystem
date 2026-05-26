@@ -25,6 +25,7 @@ model User {
   files                       File[]
   folders                     Folder[]
   folderMemberships           FolderMember[]
+  ledFolders                  Folder[]       @relation("FolderTeamLeader")
 }
 
 model File {
@@ -67,6 +68,8 @@ model Folder {
   parent     Folder?        @relation("FolderParent", fields: [parentId], references: [id])
   children   Folder[]       @relation("FolderParent")
   members    FolderMember[]
+  teamLeaderId String?
+  teamLeader   User?          @relation("FolderTeamLeader", fields: [teamLeaderId], references: [id], onDelete: SetNull)
 
   @@unique([name, userId, parentId])
 }
