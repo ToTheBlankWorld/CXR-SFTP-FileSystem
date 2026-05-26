@@ -309,9 +309,17 @@ export function FolderCard({
           <FolderOpen className="h-20 w-20 text-blue-400/80 absolute opacity-0 scale-95 transition-all duration-500 ease-out group-hover:opacity-100 group-hover:scale-110" />
 
           {isTeamFolder && (
-            <div className="absolute top-2 right-2 rounded-full bg-purple-500/20 ring-1 ring-purple-500/40 px-2 py-1 flex items-center gap-1 backdrop-blur-md">
-              <Shield className="h-3 w-3 text-purple-300" />
-              <span className="text-[10px] font-semibold text-purple-200 uppercase tracking-wider">Team</span>
+            <div className="absolute top-2 right-2 flex gap-1.5">
+              <div className="rounded-full bg-purple-500/20 ring-1 ring-purple-500/40 px-2 py-1 flex items-center gap-1 backdrop-blur-md">
+                <Shield className="h-3 w-3 text-purple-300" />
+                <span className="text-[10px] font-semibold text-purple-200 uppercase tracking-wider">Team</span>
+              </div>
+              {folder.teamLeaderId && (
+                <div className="rounded-full bg-yellow-500/20 ring-1 ring-yellow-500/40 px-2 py-1 flex items-center gap-1 backdrop-blur-md">
+                  <Crown className="h-3 w-3 text-yellow-300" />
+                  <span className="text-[10px] font-semibold text-yellow-200 uppercase tracking-wider">Leader</span>
+                </div>
+              )}
             </div>
           )}
         </div>

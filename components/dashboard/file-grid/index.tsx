@@ -46,6 +46,7 @@ export function FileGrid() {
       userId?: string
       visibility?: 'PUBLIC' | 'PRIVATE' | 'USERS_AND_ADMINS' | 'USER_ONLY' | 'TEAM'
       isMember?: boolean
+      teamLeaderId?: string | null
     }[]
   >([])
   const [isLoading, setIsLoading] = useState(true)
@@ -376,6 +377,7 @@ export function FileGrid() {
                     size: folder.size,
                     visibility: folder.visibility,
                     isMember: folder.isMember,
+                    teamLeaderId: folder.teamLeaderId,
                   }}
                   onNavigate={navigateToFolder}
                   onDelete={handleDeleteFolder}
