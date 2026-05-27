@@ -26,6 +26,7 @@ model User {
   folders                     Folder[]
   folderMemberships           FolderMember[]
   ledFolders                  Folder[]       @relation("FolderTeamLeader")
+  chatMessages                ChatMessage[]  @relation("UserChatMessages")
 }
 
 model File {
@@ -70,6 +71,7 @@ model Folder {
   members    FolderMember[]
   teamLeaderId String?
   teamLeader   User?          @relation("FolderTeamLeader", fields: [teamLeaderId], references: [id], onDelete: SetNull)
+  chatMessages ChatMessage[]  @relation("FolderChatMessages")
 
   @@unique([name, userId, parentId])
 }
@@ -118,4 +120,16 @@ enum FileVisibility {
   USERS_AND_ADMINS
   USER_ONLY
   TEAM
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  folderId  String
+  userId    String
+  message   String
+  createdAt DateTime @default(now())
+  folder    Folder   @relation("FolderChatMessages", fields: [folderId], references: [id], onDelete: Cascade)
+  user      User     @relation("UserChatMessages", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([folderId])
 }

@@ -9,7 +9,7 @@ import type {
   PaginationInfo,
   SortOption,
 } from '@/types/components/file'
-import { ChevronRight, FolderPlus, Home, RefreshCw, Upload, Lock } from 'lucide-react'
+import { ChevronRight, FolderPlus, Home, RefreshCw, Upload, Lock, MessageSquare } from 'lucide-react'
 
 import { FileCard } from '@/components/dashboard/file-card'
 import { FileCardSkeleton } from '@/components/dashboard/file-grid/file-card-skeleton'
@@ -20,6 +20,7 @@ import {
 } from '@/components/dashboard/file-grid/pagination'
 import { SearchInput } from '@/components/dashboard/file-grid/search-input'
 import { FolderCard } from '@/components/dashboard/folder-card'
+import { TeamChatSheet } from '../team-chat-sheet'
 import { EmptyPlaceholder } from '@/components/shared/empty-placeholder'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -51,6 +52,8 @@ export function FileGrid() {
   >([])
   const [isLoading, setIsLoading] = useState(true)
   const [fileTypes] = useState<string[]>([])
+  const [chatInfo, setChatInfo] = useState<{ isAllowed: boolean; chatFolderId?: string; chatFolderName?: string } | null>(null)
+  const [isChatOpen, setIsChatOpen] = useState(false)
   const [paginationInfo, setPaginationInfo] = useState<PaginationInfo>({
     total: 0,
     pageCount: 0,
@@ -191,6 +194,28 @@ export function FileGrid() {
     },
     []
   )
+
+  useEffect(() => {
+    if (currentPath === '' || currentPath === '/') {
+      setChatInfo(null)
+      return
+    }
+    const checkChatAuth = async () => {
+      try {
+        const res = await fetch(`/api/folders/chat-info?path=${encodeURIComponent(currentPath)}`)
+        if (res.ok) {
+          const data = await res.json()
+          setChatInfo(data.data)
+        } else {
+          setChatInfo(null)
+        }
+      } catch (err) {
+        console.error('Failed to check chat auth', err)
+        setChatInfo(null)
+      }
+    }
+    checkChatAuth()
+  }, [currentPath])
 
   useEffect(() => {
     async function fetchData() {
@@ -419,6 +444,17 @@ export function FileGrid() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              {chatInfo?.isAllowed && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-purple-500/30 hover:bg-purple-500/10 text-purple-400 hover:text-purple-300 shadow-md shadow-purple-500/5 transition-all duration-300"
+                  onClick={() => setIsChatOpen(true)}
+                >
+                  <MessageSquare className="mr-2 h-4 w-4" />
+                  Team Chat
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -531,6 +567,14 @@ export function FileGrid() {
           </div>
         </DialogContent>
       </Dialog>
+      {chatInfo?.isAllowed && chatInfo.chatFolderId && chatInfo.chatFolderName && (
+        <TeamChatSheet
+          isOpen={isChatOpen}
+          onOpenChange={setIsChatOpen}
+          chatFolderId={chatInfo.chatFolderId}
+          chatFolderName={chatInfo.chatFolderName}
+        />
+      )}
     </div>
   )
 }
