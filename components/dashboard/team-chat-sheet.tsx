@@ -50,7 +50,9 @@ export function TeamChatSheet({
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
+  const [typingUsers, setTypingUsers] = useState<string[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const lastTypingSentTime = useRef<number>(0)
 
   const currentUserId = session?.user?.id
   const isOwner =
@@ -70,11 +72,24 @@ export function TeamChatSheet({
       const res = await fetch(`/api/folders/chat/${folderPathSegment}`)
       if (!res.ok) throw new Error('Failed to load chat history')
       const data = await res.json()
-      setMessages(data.data || [])
+      setMessages(data.data?.messages || [])
+      setTypingUsers(data.data?.typingUsers || [])
     } catch (err) {
       console.error('Error fetching chat messages:', err)
     }
   }, [folderPathSegment])
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewMessage(e.target.value)
+
+    const now = Date.now()
+    if (now - lastTypingSentTime.current > 4000) {
+      lastTypingSentTime.current = now
+      fetch(`/api/folders/chat/${folderPathSegment}`, {
+        method: 'PUT',
+      }).catch((err) => console.error('Failed to send typing status', err))
+    }
+  }
 
   // Poll for new messages every 3 seconds when open
   useEffect(() => {
@@ -252,6 +267,20 @@ export function TeamChatSheet({
           <div ref={messagesEndRef} />
         </div>
 
+        {/* Typing Indicator */}
+        {typingUsers.length > 0 && (
+          <div className="px-4 py-2 bg-purple-500/5 border-t border-purple-500/10 text-xs text-purple-300 flex items-center gap-2 animate-in slide-in-from-bottom duration-300">
+            <div className="flex gap-1.5 items-center">
+              <span className="h-1.5 w-1.5 bg-purple-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
+              <span className="h-1.5 w-1.5 bg-purple-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
+              <span className="h-1.5 w-1.5 bg-purple-400 rounded-full animate-bounce" />
+            </div>
+            <span className="font-medium text-[11px]">
+              {typingUsers.join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
+            </span>
+          </div>
+        )}
+
         {/* Input Bar */}
         <form
           onSubmit={handleSendMessage}
@@ -259,7 +288,7 @@ export function TeamChatSheet({
         >
           <Input
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+            onChange={handleInputChange}
             placeholder="Type a message..."
             maxLength={1000}
             className="flex-1 bg-background/50 border-border focus:border-purple-500"

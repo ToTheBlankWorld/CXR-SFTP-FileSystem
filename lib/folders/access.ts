@@ -35,9 +35,13 @@ export async function checkFolderAccess(
     prefixPaths.push(current)
   }
 
-  // Fetch all existing folder definitions in the hierarchy from the database
+  // Fetch all existing folder definitions in the hierarchy from the database (case-insensitive)
   const folders = await prisma.folder.findMany({
-    where: { id: { in: prefixPaths } },
+    where: {
+      OR: prefixPaths.map((p) => ({
+        id: { equals: p, mode: 'insensitive' },
+      })),
+    },
     orderBy: { id: 'asc' }, // Order root-to-leaf
     include: { members: { select: { userId: true } } },
   })
@@ -85,7 +89,10 @@ export async function checkFolderAccess(
         // If it's a single string, only apply it if it's the exact folder being accessed, or check it
         pwdToTest = providedPasswords
       } else if (providedPasswords && typeof providedPasswords === 'object') {
-        pwdToTest = providedPasswords[folder.id]
+        const matchingKey = Object.keys(providedPasswords).find(
+          (k) => k.toLowerCase() === folder.id.toLowerCase()
+        )
+        pwdToTest = matchingKey ? providedPasswords[matchingKey] : undefined
       }
 
       if (!pwdToTest) {

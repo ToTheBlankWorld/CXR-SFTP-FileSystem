@@ -38,8 +38,8 @@ export async function GET(request: Request) {
           headers: { 'Content-Type': 'application/json' },
         })
       }
-      return new Response(JSON.stringify({ error: 'Folder not found' }), {
-        status: 404,
+      return new Response(JSON.stringify({ error: accessResult.reason }), {
+        status: accessResult.status,
         headers: { 'Content-Type': 'application/json' },
       })
     }

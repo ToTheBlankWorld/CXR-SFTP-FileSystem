@@ -27,6 +27,7 @@ model User {
   folderMemberships           FolderMember[]
   ledFolders                  Folder[]       @relation("FolderTeamLeader")
   chatMessages                ChatMessage[]  @relation("UserChatMessages")
+  typingRecords               ChatTyping[]   @relation("UserTyping")
 }
 
 model File {
@@ -131,5 +132,16 @@ model ChatMessage {
   folder    Folder   @relation("FolderChatMessages", fields: [folderId], references: [id], onDelete: Cascade)
   user      User     @relation("UserChatMessages", fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([folderId])
+}
+
+model ChatTyping {
+  id        String   @id @default(cuid())
+  folderId  String
+  userId    String
+  updatedAt DateTime @default(now()) @updatedAt
+  user      User     @relation("UserTyping", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([folderId, userId])
   @@index([folderId])
 }

@@ -54,6 +54,7 @@ export function FileGrid() {
   const [fileTypes] = useState<string[]>([])
   const [chatInfo, setChatInfo] = useState<{ isAllowed: boolean; chatFolderId?: string; chatFolderName?: string; ownerId?: string } | null>(null)
   const [isChatOpen, setIsChatOpen] = useState(false)
+  const [isAccessDenied, setIsAccessDenied] = useState(false)
   const [paginationInfo, setPaginationInfo] = useState<PaginationInfo>({
     total: 0,
     pageCount: 0,
@@ -223,6 +224,7 @@ export function FileGrid() {
         setIsLoading(true)
         setPasswordRequired(false)
         setFolderPasswordError(null)
+        setIsAccessDenied(false)
 
         const headers: Record<string, string> = {}
         if (Object.keys(folderPasswords).length > 0) {
@@ -236,6 +238,17 @@ export function FileGrid() {
           setFolders([])
           setFiles([])
           return
+        }
+
+        if (folderRes.status === 403 || folderRes.status === 404) {
+          const errData = folderRes.ok ? {} : await folderRes.json().catch(() => ({}))
+          if (errData.error === 'team_only' || errData.error === 'private') {
+            setIsAccessDenied(true)
+            setFolders([])
+            setFiles([])
+            setIsLoading(false)
+            return
+          }
         }
 
         const folderData = folderRes.ok ? await folderRes.json() : null
@@ -291,6 +304,36 @@ export function FileGrid() {
   }
 
   const renderContent = () => {
+    if (isAccessDenied) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 px-4 animate-in fade-in duration-500">
+          <Card className="w-full max-w-md p-8 border border-red-500/20 bg-card/60 backdrop-blur-xl shadow-2xl relative overflow-hidden rounded-2xl text-center">
+            <div className="absolute -top-10 -right-10 w-24 h-24 bg-red-500/10 rounded-full blur-2xl animate-pulse" />
+            <div className="absolute -bottom-10 -left-10 w-24 h-24 bg-red-500/10 rounded-full blur-2xl animate-pulse" />
+
+            <div className="flex flex-col items-center space-y-4">
+              <div className="p-4 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 animate-pulse">
+                <Lock className="h-8 w-8" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-xl font-bold tracking-tight text-red-100">Restricted Folder</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  You are not a member of the team assigned to this folder and do not have permission to view its contents.
+                </p>
+              </div>
+
+              <Button
+                onClick={() => navigateToBreadcrumb(-1)}
+                className="w-full mt-4 border border-border bg-background/50 hover:bg-white/10 text-foreground transition-all duration-300"
+              >
+                Go Back
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )
+    }
+
     if (passwordRequired) {
       return (
         <div className="flex flex-col items-center justify-center py-12 px-4 animate-in fade-in duration-500">
@@ -444,7 +487,7 @@ export function FileGrid() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {chatInfo?.isAllowed && (
+              {chatInfo?.isAllowed && !isAccessDenied && !passwordRequired && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -455,20 +498,24 @@ export function FileGrid() {
                   Team Chat
                 </Button>
               )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsCreateFolderOpen(true)}
-              >
-                <FolderPlus className="mr-2 h-4 w-4" />
-                New Folder
-              </Button>
-              <Button variant="default" size="sm" asChild>
-                <Link href={`/dashboard/upload?path=${encodeURIComponent(currentPath)}`}>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Upload
-                </Link>
-              </Button>
+              {!isAccessDenied && !passwordRequired && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsCreateFolderOpen(true)}
+                  >
+                    <FolderPlus className="mr-2 h-4 w-4" />
+                    New Folder
+                  </Button>
+                  <Button variant="default" size="sm" asChild>
+                    <Link href={`/dashboard/upload?path=${encodeURIComponent(currentPath)}`}>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Upload
+                    </Link>
+                  </Button>
+                </>
+              )}
               <Button
                 variant="ghost"
                 size="icon"

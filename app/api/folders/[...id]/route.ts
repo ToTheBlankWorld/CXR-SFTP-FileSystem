@@ -24,10 +24,12 @@ export async function PATCH(
       return apiError('Folder name is required', HTTP_STATUS.BAD_REQUEST)
     }
 
-    const folder = await prisma.folder.findUnique({ where: { id: folderPath } })
+    const folder = await prisma.folder.findFirst({ where: { id: { equals: folderPath, mode: 'insensitive' } } })
     if (!folder) {
       return apiError('Folder not found', HTTP_STATUS.NOT_FOUND)
     }
+
+    const resolvedPath = folder.id
 
     if (auth.user?.role !== 'ADMIN' && auth.user?.role !== 'OWNER') {
       if (folder.teamLeaderId) {
@@ -41,26 +43,26 @@ export async function PATCH(
       }
     }
 
-    const parentDir = normalizePath(folderPath.substring(0, folderPath.lastIndexOf('/') + 1))
+    const parentDir = normalizePath(resolvedPath.substring(0, resolvedPath.lastIndexOf('/') + 1))
     const newPath = normalizePath(`${parentDir}/${name.trim()}`)
 
-    await rename(folderPath, newPath)
+    await rename(resolvedPath, newPath)
 
     // Update folder DB records
     const cleanParentId = parentDir === '/' ? null : parentDir.replace(/\/$/, '')
     await prisma.folder.upsert({
-      where: { id: folderPath },
+      where: { id: resolvedPath },
       update: { id: newPath, name: name.trim(), parentId: cleanParentId },
       create: { id: newPath, name: name.trim(), userId: folder?.userId || auth.user!.id, parentId: cleanParentId }
     })
 
     // Update nested subfolders
     const subfolders = await prisma.folder.findMany({
-      where: { id: { startsWith: `${folderPath}/` } }
+      where: { id: { startsWith: `${resolvedPath}/` } }
     })
     for (const sub of subfolders) {
-      const newSubPath = normalizePath(sub.id.replace(folderPath, newPath))
-      const newSubParentId = sub.parentId ? normalizePath(sub.parentId.replace(folderPath, newPath)) : null
+      const newSubPath = normalizePath(sub.id.replace(resolvedPath, newPath))
+      const newSubParentId = sub.parentId ? normalizePath(sub.parentId.replace(resolvedPath, newPath)) : null
       await prisma.folder.update({
         where: { id: sub.id },
         data: { id: newSubPath, parentId: newSubParentId }
@@ -69,10 +71,10 @@ export async function PATCH(
 
     // Update file paths in DB
     const files = await prisma.file.findMany({
-      where: { path: { startsWith: `${folderPath}/` } }
+      where: { path: { startsWith: `${resolvedPath}/` } }
     })
     for (const file of files) {
-      const newFilePath = normalizePath(file.path.replace(folderPath, newPath))
+      const newFilePath = normalizePath(file.path.replace(resolvedPath, newPath))
       const isLegacy = file.urlPath.startsWith('/api/files/serve')
       const newUrlPath = isLegacy
         ? `/api/files/serve?path=${encodeURIComponent(newFilePath)}`
@@ -117,10 +119,12 @@ export async function DELETE(
     const { id } = await params
     const folderPath = normalizePath('/' + id.map(decodeURIComponent).join('/'))
 
-    const folder = await prisma.folder.findUnique({ where: { id: folderPath } })
+    const folder = await prisma.folder.findFirst({ where: { id: { equals: folderPath, mode: 'insensitive' } } })
     if (!folder) {
       return apiError('Folder not found', HTTP_STATUS.NOT_FOUND)
     }
+
+    const resolvedPath = folder.id
 
     if (auth.user?.role !== 'ADMIN' && auth.user?.role !== 'OWNER') {
       if (folder.teamLeaderId) {
@@ -134,15 +138,15 @@ export async function DELETE(
       }
     }
 
-    await deleteDir(folderPath)
-    await prisma.file.deleteMany({ where: { path: { startsWith: folderPath } } })
+    await deleteDir(resolvedPath)
+    await prisma.file.deleteMany({ where: { path: { startsWith: resolvedPath } } })
 
     // Clean up folder mappings in DB
     await prisma.folder.deleteMany({
       where: {
         OR: [
-          { id: folderPath },
-          { id: { startsWith: `${folderPath}/` } }
+          { id: resolvedPath },
+          { id: { startsWith: `${resolvedPath}/` } }
         ]
       }
     })
