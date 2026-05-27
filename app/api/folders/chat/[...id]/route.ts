@@ -17,16 +17,14 @@ export async function GET(
     const { id } = await params
     const folderPath = normalizePath('/' + id.map(decodeURIComponent).join('/'))
 
-    const folder = await prisma.folder.findFirst({
-      where: { id: { equals: folderPath, mode: 'insensitive' } },
+    const folder = await prisma.folder.findUnique({
+      where: { id: folderPath },
       include: { members: { select: { userId: true } } },
     })
 
     if (!folder) {
       return apiError('Folder not found', HTTP_STATUS.NOT_FOUND)
     }
-
-    const resolvedPath = folder.id
 
     const isSystemOwner = auth.user.role === 'OWNER'
     const isSystemAdmin = auth.user.role === 'ADMIN'
@@ -39,7 +37,7 @@ export async function GET(
 
     // Fetch the latest 100 messages
     const messages = await prisma.chatMessage.findMany({
-      where: { folderId: resolvedPath },
+      where: { folderId: folderPath },
       orderBy: { createdAt: 'asc' },
       include: {
         user: {
@@ -52,7 +50,7 @@ export async function GET(
     // Fetch active typing users in the last 6 seconds, excluding current user
     const activeTypings = await prisma.chatTyping.findMany({
       where: {
-        folderId: resolvedPath,
+        folderId: folderPath,
         userId: { not: auth.user.id },
         updatedAt: { gte: new Date(Date.now() - 6000) },
       },
@@ -83,16 +81,14 @@ export async function POST(
     const { id } = await params
     const folderPath = normalizePath('/' + id.map(decodeURIComponent).join('/'))
 
-    const folder = await prisma.folder.findFirst({
-      where: { id: { equals: folderPath, mode: 'insensitive' } },
+    const folder = await prisma.folder.findUnique({
+      where: { id: folderPath },
       include: { members: { select: { userId: true } } },
     })
 
     if (!folder) {
       return apiError('Folder not found', HTTP_STATUS.NOT_FOUND)
     }
-
-    const resolvedPath = folder.id
 
     const isSystemOwner = auth.user.role === 'OWNER'
     const isSystemAdmin = auth.user.role === 'ADMIN'
@@ -112,7 +108,7 @@ export async function POST(
 
     const created = await prisma.chatMessage.create({
       data: {
-        folderId: resolvedPath,
+        folderId: folderPath,
         userId: auth.user.id,
         message: message.trim(),
       },
@@ -141,16 +137,14 @@ export async function PUT(
     const { id } = await params
     const folderPath = normalizePath('/' + id.map(decodeURIComponent).join('/'))
 
-    const folder = await prisma.folder.findFirst({
-      where: { id: { equals: folderPath, mode: 'insensitive' } },
+    const folder = await prisma.folder.findUnique({
+      where: { id: folderPath },
       include: { members: { select: { userId: true } } },
     })
 
     if (!folder) {
       return apiError('Folder not found', HTTP_STATUS.NOT_FOUND)
     }
-
-    const resolvedPath = folder.id
 
     const isSystemOwner = auth.user.role === 'OWNER'
     const isSystemAdmin = auth.user.role === 'ADMIN'
@@ -163,10 +157,10 @@ export async function PUT(
 
     await prisma.chatTyping.upsert({
       where: {
-        folderId_userId: { folderId: resolvedPath, userId: auth.user.id },
+        folderId_userId: { folderId: folderPath, userId: auth.user.id },
       },
       update: { updatedAt: new Date() },
-      create: { folderId: resolvedPath, userId: auth.user.id },
+      create: { folderId: folderPath, userId: auth.user.id },
     })
 
     return apiResponse({ success: true })
@@ -187,15 +181,13 @@ export async function DELETE(
     const { id } = await params
     const folderPath = normalizePath('/' + id.map(decodeURIComponent).join('/'))
 
-    const folder = await prisma.folder.findFirst({
-      where: { id: { equals: folderPath, mode: 'insensitive' } },
+    const folder = await prisma.folder.findUnique({
+      where: { id: folderPath },
     })
 
     if (!folder) {
       return apiError('Folder not found', HTTP_STATUS.NOT_FOUND)
     }
-
-    const resolvedPath = folder.id
 
     const isSystemOwner = auth.user.role === 'OWNER'
     const isSystemAdmin = auth.user.role === 'ADMIN'
@@ -206,7 +198,7 @@ export async function DELETE(
     }
 
     await prisma.chatMessage.deleteMany({
-      where: { folderId: resolvedPath },
+      where: { folderId: folderPath },
     })
 
     return apiResponse({ success: true })

@@ -17,8 +17,8 @@ export async function GET(
     const { id } = await params
     const folderPath = normalizePath('/' + id.map(decodeURIComponent).join('/'))
 
-    const folder = await prisma.folder.findFirst({
-      where: { id: { equals: folderPath, mode: 'insensitive' } },
+    const folder = await prisma.folder.findUnique({
+      where: { id: folderPath },
       include: {
         user: {
           select: { id: true, name: true, email: true, role: true, image: true },
@@ -83,12 +83,10 @@ export async function POST(
     const { id } = await params
     const folderPath = normalizePath('/' + id.map(decodeURIComponent).join('/'))
 
-    const folder = await prisma.folder.findFirst({ where: { id: { equals: folderPath, mode: 'insensitive' } } })
+    const folder = await prisma.folder.findUnique({ where: { id: folderPath } })
     if (!folder) {
       return apiError('Folder not found', HTTP_STATUS.NOT_FOUND)
     }
-
-    const resolvedPath = folder.id
 
     const isOwner = auth.user.id === folder.userId
     const isSystemOwner = auth.user.role === 'OWNER'
@@ -110,15 +108,15 @@ export async function POST(
     }
 
     await prisma.folderMember.upsert({
-      where: { folderId_userId: { folderId: resolvedPath, userId } },
+      where: { folderId_userId: { folderId: folderPath, userId } },
       update: {},
-      create: { folderId: resolvedPath, userId },
+      create: { folderId: folderPath, userId },
     })
 
     // Auto-mark the folder as TEAM whenever it has members
     if (folder.visibility !== 'TEAM') {
       await prisma.folder.update({
-        where: { id: resolvedPath },
+        where: { id: folderPath },
         data: { visibility: 'TEAM' },
       })
     }
@@ -141,12 +139,10 @@ export async function DELETE(
     const { id } = await params
     const folderPath = normalizePath('/' + id.map(decodeURIComponent).join('/'))
 
-    const folder = await prisma.folder.findFirst({ where: { id: { equals: folderPath, mode: 'insensitive' } } })
+    const folder = await prisma.folder.findUnique({ where: { id: folderPath } })
     if (!folder) {
       return apiError('Folder not found', HTTP_STATUS.NOT_FOUND)
     }
-
-    const resolvedPath = folder.id
 
     const isOwner = auth.user.id === folder.userId
     const isSystemOwner = auth.user.role === 'OWNER'
@@ -163,16 +159,16 @@ export async function DELETE(
     }
 
     await prisma.folderMember.deleteMany({
-      where: { folderId: resolvedPath, userId },
+      where: { folderId: folderPath, userId },
     })
 
     // If no members left, revert visibility back to PUBLIC
     const remaining = await prisma.folderMember.count({
-      where: { folderId: resolvedPath },
+      where: { folderId: folderPath },
     })
     if (remaining === 0) {
       await prisma.folder.update({
-        where: { id: resolvedPath },
+        where: { id: folderPath },
         data: { visibility: 'PUBLIC' },
       })
     }
@@ -195,12 +191,10 @@ export async function PATCH(
     const { id } = await params
     const folderPath = normalizePath('/' + id.map(decodeURIComponent).join('/'))
 
-    const folder = await prisma.folder.findFirst({ where: { id: { equals: folderPath, mode: 'insensitive' } } })
+    const folder = await prisma.folder.findUnique({ where: { id: folderPath } })
     if (!folder) {
       return apiError('Folder not found', HTTP_STATUS.NOT_FOUND)
     }
-
-    const resolvedPath = folder.id
 
     const isOwner = auth.user.id === folder.userId
     const isSystemOwner = auth.user.role === 'OWNER'
@@ -221,7 +215,7 @@ export async function PATCH(
     }
 
     await prisma.folder.update({
-      where: { id: resolvedPath },
+      where: { id: folderPath },
       data: { teamLeaderId: teamLeaderId || null },
     })
 
