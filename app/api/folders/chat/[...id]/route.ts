@@ -1,7 +1,10 @@
 import { HTTP_STATUS, apiError, apiResponse } from '@/lib/api/response'
 import { requireAuth } from '@/lib/auth/api-auth'
 import { prisma } from '@/lib/database/prisma'
+import { loggers } from '@/lib/logger'
 import { normalizePath } from '@/lib/utils'
+
+const logger = loggers.files
 
 export async function GET(
   request: Request,
@@ -45,7 +48,8 @@ export async function GET(
     })
 
     return apiResponse(messages)
-  } catch {
+  } catch (error) {
+    logger.error('Failed to fetch chat messages', error as Error)
     return apiError('Failed to fetch chat messages', HTTP_STATUS.INTERNAL_SERVER_ERROR)
   }
 }
@@ -100,7 +104,8 @@ export async function POST(
     })
 
     return apiResponse(created)
-  } catch {
+  } catch (error) {
+    logger.error('Failed to send message', error as Error)
     return apiError('Failed to send message', HTTP_STATUS.INTERNAL_SERVER_ERROR)
   }
 }
