@@ -14,6 +14,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 
 interface ChatMessage {
@@ -51,6 +58,7 @@ export function TeamChatSheet({
   const [newMessage, setNewMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [typingUsers, setTypingUsers] = useState<string[]>([])
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const lastTypingSentTime = useRef<number>(0)
 
@@ -138,8 +146,6 @@ export function TeamChatSheet({
   }
 
   const handleClearChat = async () => {
-    if (!confirm('Are you sure you want to clear all chat messages in this team folder?')) return
-
     try {
       const res = await fetch(`/api/folders/chat/${folderPathSegment}`, {
         method: 'DELETE',
@@ -150,6 +156,7 @@ export function TeamChatSheet({
       }
       setMessages([])
       toast({ title: 'Chat cleared' })
+      setIsClearConfirmOpen(false)
     } catch (err) {
       toast({
         title: 'Failed to clear chat',
@@ -173,15 +180,26 @@ export function TeamChatSheet({
             <SheetTitle className="text-sm font-semibold truncate leading-none">
               {chatFolderName} Chat
             </SheetTitle>
-            <SheetDescription className="text-xs text-muted-foreground mt-1 truncate">
-              Team communication room
+            <SheetDescription className="text-[11px] text-muted-foreground mt-1 truncate">
+              {typingUsers.length > 0 ? (
+                <span className="text-purple-400 font-semibold flex items-center gap-1 animate-pulse">
+                  <span className="flex gap-0.5 items-center mr-1">
+                    <span className="h-1 w-1 bg-purple-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                    <span className="h-1 w-1 bg-purple-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                    <span className="h-1 w-1 bg-purple-400 rounded-full animate-bounce" />
+                  </span>
+                  {typingUsers.join(', ')} typing...
+                </span>
+              ) : (
+                'Team communication room'
+              )}
             </SheetDescription>
           </div>
           {isOwner && (
             <Button
               variant="ghost"
               size="icon"
-              onClick={handleClearChat}
+              onClick={() => setIsClearConfirmOpen(true)}
               className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 w-8 flex-shrink-0 mr-4"
               title="Clear Chat"
             >
@@ -267,20 +285,6 @@ export function TeamChatSheet({
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Typing Indicator */}
-        {typingUsers.length > 0 && (
-          <div className="px-4 py-2 bg-purple-500/5 border-t border-purple-500/10 text-xs text-purple-300 flex items-center gap-2 animate-in slide-in-from-bottom duration-300">
-            <div className="flex gap-1.5 items-center">
-              <span className="h-1.5 w-1.5 bg-purple-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
-              <span className="h-1.5 w-1.5 bg-purple-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
-              <span className="h-1.5 w-1.5 bg-purple-400 rounded-full animate-bounce" />
-            </div>
-            <span className="font-medium text-[11px]">
-              {typingUsers.join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
-            </span>
-          </div>
-        )}
-
         {/* Input Bar */}
         <form
           onSubmit={handleSendMessage}
@@ -303,6 +307,36 @@ export function TeamChatSheet({
             <Send className="h-4 w-4" />
           </Button>
         </form>
+
+        <Dialog open={isClearConfirmOpen} onOpenChange={setIsClearConfirmOpen}>
+          <DialogContent className="sm:max-w-md border border-purple-500/20 bg-black/95 backdrop-blur-xl shadow-[0_0_50px_rgba(168,85,247,0.15)] text-foreground">
+            <DialogHeader className="flex flex-col items-center gap-4 text-center">
+              <div className="rounded-full bg-purple-500/10 p-3 ring-1 ring-purple-500/30">
+                <Trash2 className="h-6 w-6 text-purple-500 animate-pulse" />
+              </div>
+              <DialogTitle className="text-xl font-bold tracking-tight">Clear Chat History</DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground leading-relaxed">
+                Are you sure you want to clear all chat messages in this team folder? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-3 pt-4">
+              <Button
+                variant="outline"
+                className="border-border/50 hover:bg-white/10"
+                onClick={() => setIsClearConfirmOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                className="bg-purple-600 hover:bg-purple-700 text-white font-semibold"
+                onClick={handleClearChat}
+              >
+                Clear Chat
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </SheetContent>
     </Sheet>
   )
