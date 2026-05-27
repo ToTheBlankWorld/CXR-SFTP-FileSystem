@@ -109,3 +109,41 @@ export async function POST(
     return apiError('Failed to send message', HTTP_STATUS.INTERNAL_SERVER_ERROR)
   }
 }
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string[] }> }
+) {
+  try {
+    const auth = await requireAuth(request)
+    if (auth.response) return auth.response
+
+    const { id } = await params
+    const folderPath = normalizePath('/' + id.map(decodeURIComponent).join('/'))
+
+    const folder = await prisma.folder.findUnique({
+      where: { id: folderPath },
+    })
+
+    if (!folder) {
+      return apiError('Folder not found', HTTP_STATUS.NOT_FOUND)
+    }
+
+    const isSystemOwner = auth.user.role === 'OWNER'
+    const isSystemAdmin = auth.user.role === 'ADMIN'
+    const isFolderOwner = auth.user.id === folder.userId
+
+    if (!isSystemOwner && !isSystemAdmin && !isFolderOwner) {
+      return apiError('Unauthorized', HTTP_STATUS.UNAUTHORIZED)
+    }
+
+    await prisma.chatMessage.deleteMany({
+      where: { folderId: folderPath },
+    })
+
+    return apiResponse({ success: true })
+  } catch (error) {
+    logger.error('Failed to clear chat messages', error as Error)
+    return apiError('Failed to clear chat', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+  }
+}

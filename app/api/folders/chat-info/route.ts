@@ -60,6 +60,7 @@ export async function GET(request: Request) {
         isAllowed: true,
         chatFolderId: teamFolder.id,
         chatFolderName: teamFolder.name,
+        ownerId: teamFolder.userId,
       })
     }
 

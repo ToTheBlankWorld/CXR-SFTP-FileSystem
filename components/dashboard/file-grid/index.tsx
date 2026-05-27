@@ -52,7 +52,7 @@ export function FileGrid() {
   >([])
   const [isLoading, setIsLoading] = useState(true)
   const [fileTypes] = useState<string[]>([])
-  const [chatInfo, setChatInfo] = useState<{ isAllowed: boolean; chatFolderId?: string; chatFolderName?: string } | null>(null)
+  const [chatInfo, setChatInfo] = useState<{ isAllowed: boolean; chatFolderId?: string; chatFolderName?: string; ownerId?: string } | null>(null)
   const [isChatOpen, setIsChatOpen] = useState(false)
   const [paginationInfo, setPaginationInfo] = useState<PaginationInfo>({
     total: 0,
@@ -573,6 +573,7 @@ export function FileGrid() {
           onOpenChange={setIsChatOpen}
           chatFolderId={chatInfo.chatFolderId}
           chatFolderName={chatInfo.chatFolderName}
+          ownerId={chatInfo.ownerId || ''}
         />
       )}
     </div>

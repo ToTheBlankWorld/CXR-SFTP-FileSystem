@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Crown, MessageSquare, Send, Shield } from 'lucide-react'
+import { Crown, MessageSquare, Send, Shield, Trash2 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -35,6 +35,7 @@ interface TeamChatSheetProps {
   onOpenChange: (open: boolean) => void
   chatFolderId: string
   chatFolderName: string
+  ownerId: string
 }
 
 export function TeamChatSheet({
@@ -42,6 +43,7 @@ export function TeamChatSheet({
   onOpenChange,
   chatFolderId,
   chatFolderName,
+  ownerId,
 }: TeamChatSheetProps) {
   const { data: session } = useSession()
   const { toast } = useToast()
@@ -51,6 +53,10 @@ export function TeamChatSheet({
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const currentUserId = session?.user?.id
+  const isOwner =
+    currentUserId === ownerId ||
+    session?.user?.role === 'OWNER' ||
+    session?.user?.role === 'ADMIN'
 
   // URL encode the folder ID path segment
   const folderPathSegment = chatFolderId
@@ -116,6 +122,28 @@ export function TeamChatSheet({
     }
   }
 
+  const handleClearChat = async () => {
+    if (!confirm('Are you sure you want to clear all chat messages in this team folder?')) return
+
+    try {
+      const res = await fetch(`/api/folders/chat/${folderPathSegment}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to clear chat')
+      }
+      setMessages([])
+      toast({ title: 'Chat cleared' })
+    } catch (err) {
+      toast({
+        title: 'Failed to clear chat',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      })
+    }
+  }
+
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
       <SheetContent
@@ -134,6 +162,17 @@ export function TeamChatSheet({
               Team communication room
             </SheetDescription>
           </div>
+          {isOwner && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleClearChat}
+              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 w-8 flex-shrink-0 mr-4"
+              title="Clear Chat"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
         </SheetHeader>
 
         {/* Message Stream */}
