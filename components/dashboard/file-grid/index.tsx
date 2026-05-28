@@ -52,8 +52,16 @@ export function FileGrid() {
   >([])
   const [isLoading, setIsLoading] = useState(true)
   const [fileTypes] = useState<string[]>([])
-  const [chatInfo, setChatInfo] = useState<{ isAllowed: boolean; chatFolderId?: string; chatFolderName?: string; ownerId?: string } | null>(null)
+  const [chatInfo, setChatInfo] = useState<{
+    isAllowed: boolean
+    chatFolderId?: string
+    chatFolderName?: string
+    ownerId?: string
+    members?: { id: string; name: string | null; email: string | null; role: string; image: string | null }[]
+  } | null>(null)
   const [isChatOpen, setIsChatOpen] = useState(false)
+  const [latestMessageId, setLatestMessageId] = useState<string | null>(null)
+  const [seenMessageId, setSeenMessageId] = useState<string | null>(null)
   const [paginationInfo, setPaginationInfo] = useState<PaginationInfo>({
     total: 0,
     pageCount: 0,
@@ -216,6 +224,47 @@ export function FileGrid() {
     }
     checkChatAuth()
   }, [currentPath])
+
+  // Poll lightweight chat metadata to surface an unread indicator without opening the sheet
+  useEffect(() => {
+    const folderId = chatInfo?.chatFolderId
+    if (!chatInfo?.isAllowed || !folderId) {
+      setLatestMessageId(null)
+      return
+    }
+    const segment = folderId.split('/').filter(Boolean).map(encodeURIComponent).join('/')
+    setSeenMessageId(localStorage.getItem(`cxr_chat_seen_${folderId}`))
+
+    let active = true
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/folders/chat/${segment}?meta=1`)
+        if (!res.ok) return
+        const data = await res.json()
+        if (active) setLatestMessageId(data.data?.latestMessageId ?? null)
+      } catch {
+        /* ignore transient poll errors */
+      }
+    }
+    poll()
+    const interval = setInterval(poll, 10000)
+    return () => {
+      active = false
+      clearInterval(interval)
+    }
+  }, [chatInfo?.isAllowed, chatInfo?.chatFolderId])
+
+  // While the chat is open, treat the latest message as seen
+  useEffect(() => {
+    const folderId = chatInfo?.chatFolderId
+    if (isChatOpen && folderId && latestMessageId) {
+      localStorage.setItem(`cxr_chat_seen_${folderId}`, latestMessageId)
+      setSeenMessageId(latestMessageId)
+    }
+  }, [isChatOpen, latestMessageId, chatInfo?.chatFolderId])
+
+  const hasUnreadChat =
+    !isChatOpen && !!latestMessageId && latestMessageId !== seenMessageId
 
   useEffect(() => {
     async function fetchData() {
@@ -448,11 +497,17 @@ export function FileGrid() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="border-purple-500/30 hover:bg-purple-500/10 text-purple-400 hover:text-purple-300 shadow-md shadow-purple-500/5 transition-all duration-300"
+                  className="relative border-purple-500/30 hover:bg-purple-500/10 text-purple-400 hover:text-purple-300 shadow-md shadow-purple-500/5 transition-all duration-300"
                   onClick={() => setIsChatOpen(true)}
                 >
                   <MessageSquare className="mr-2 h-4 w-4" />
                   Team Chat
+                  {hasUnreadChat && (
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-purple-400 opacity-75" />
+                      <span className="relative inline-flex h-3 w-3 rounded-full bg-purple-500 ring-2 ring-background" />
+                    </span>
+                  )}
                 </Button>
               )}
               <Button
@@ -574,6 +629,7 @@ export function FileGrid() {
           chatFolderId={chatInfo.chatFolderId}
           chatFolderName={chatInfo.chatFolderName}
           ownerId={chatInfo.ownerId || ''}
+          members={chatInfo.members || []}
         />
       )}
     </div>

@@ -6,6 +6,8 @@ import { normalizePath } from '@/lib/utils'
 
 const logger = loggers.files
 
+const MAX_MESSAGE_LENGTH = 1000
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string[] }> }
@@ -35,17 +37,56 @@ export async function GET(
       return apiError('Access denied', HTTP_STATUS.FORBIDDEN)
     }
 
-    // Fetch the latest 100 messages
-    const messages = await prisma.chatMessage.findMany({
-      where: { folderId: folderPath },
-      orderBy: { createdAt: 'asc' },
+    const { searchParams } = new URL(request.url)
+
+    // Lightweight unread-poll mode: just the latest message id + total count
+    if (searchParams.get('meta') === '1') {
+      const [latest, count] = await Promise.all([
+        prisma.chatMessage.findFirst({
+          where: { folderId: folderPath },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true },
+        }),
+        prisma.chatMessage.count({ where: { folderId: folderPath } }),
+      ])
+      return apiResponse({ latestMessageId: latest?.id ?? null, messageCount: count })
+    }
+
+    const since = searchParams.get('since')
+
+    const messageSelect = {
       include: {
         user: {
           select: { id: true, name: true, email: true, role: true, image: true },
         },
       },
-      take: 100,
-    })
+    }
+
+    let messages
+    if (since) {
+      // Incremental fetch: only messages newer than the client's latest
+      messages = await prisma.chatMessage.findMany({
+        where: { folderId: folderPath, createdAt: { gt: new Date(since) } },
+        orderBy: { createdAt: 'asc' },
+        ...messageSelect,
+      })
+    } else {
+      // Initial load: the latest 100 messages, returned oldest-first
+      const recent = await prisma.chatMessage.findMany({
+        where: { folderId: folderPath },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+        ...messageSelect,
+      })
+      messages = recent.reverse()
+    }
+
+    // Opportunistically clear out stale typing rows (older than 15s)
+    await prisma.chatTyping
+      .deleteMany({
+        where: { folderId: folderPath, updatedAt: { lt: new Date(Date.now() - 15000) } },
+      })
+      .catch(() => {})
 
     // Fetch active typing users in the last 6 seconds, excluding current user
     const activeTypings = await prisma.chatTyping.findMany({
@@ -106,11 +147,19 @@ export async function POST(
       return apiError('Message cannot be empty', HTTP_STATUS.BAD_REQUEST)
     }
 
+    const trimmed = message.trim()
+    if (trimmed.length > MAX_MESSAGE_LENGTH) {
+      return apiError(
+        `Message cannot exceed ${MAX_MESSAGE_LENGTH} characters`,
+        HTTP_STATUS.BAD_REQUEST
+      )
+    }
+
     const created = await prisma.chatMessage.create({
       data: {
         folderId: folderPath,
         userId: auth.user.id,
-        message: message.trim(),
+        message: trimmed,
       },
       include: {
         user: {
@@ -118,6 +167,11 @@ export async function POST(
         },
       },
     })
+
+    // The sender is no longer typing once the message is sent
+    await prisma.chatTyping
+      .deleteMany({ where: { folderId: folderPath, userId: auth.user.id } })
+      .catch(() => {})
 
     return apiResponse(created)
   } catch (error) {

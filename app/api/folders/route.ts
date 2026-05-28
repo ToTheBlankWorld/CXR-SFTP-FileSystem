@@ -159,6 +159,11 @@ export async function POST(request: Request) {
       return apiError('Folder name is required', HTTP_STATUS.BAD_REQUEST)
     }
 
+    const VALID_VISIBILITIES = ['PUBLIC', 'PRIVATE', 'USERS_AND_ADMINS', 'USER_ONLY', 'TEAM']
+    if (visibility !== undefined && !VALID_VISIBILITIES.includes(visibility)) {
+      return apiError('Invalid folder visibility', HTTP_STATUS.BAD_REQUEST)
+    }
+
     const cleanName = name.trim()
     const parentPath = normalizePath(parentId || '/')
     const newPath = normalizePath(`${parentPath}/${cleanName}`)

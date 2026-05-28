@@ -36,8 +36,15 @@ export async function GET(request: Request) {
       where: { id: { in: prefixPaths } },
       orderBy: { id: 'asc' },
       include: {
+        user: {
+          select: { id: true, name: true, email: true, role: true, image: true },
+        },
         members: {
-          select: { userId: true },
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, role: true, image: true },
+            },
+          },
         },
       },
     })
@@ -56,11 +63,19 @@ export async function GET(request: Request) {
 
     // Only members of the team, the folder creator, or system owners/admins are allowed
     if (isSystemOwner || isSystemAdmin || isFolderOwner || isMember) {
+      // Build the mentionable roster: folder creator + members, de-duplicated
+      const roster = new Map<string, { id: string; name: string | null; email: string | null; role: string; image: string | null }>()
+      if (teamFolder.user) roster.set(teamFolder.user.id, teamFolder.user)
+      for (const m of teamFolder.members) {
+        if (m.user) roster.set(m.user.id, m.user)
+      }
+
       return apiResponse({
         isAllowed: true,
         chatFolderId: teamFolder.id,
         chatFolderName: teamFolder.name,
         ownerId: teamFolder.userId,
+        members: Array.from(roster.values()),
       })
     }
 
