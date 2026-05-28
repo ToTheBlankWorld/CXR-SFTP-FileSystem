@@ -100,6 +100,7 @@
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
     "@types/uuid": "^10.0.0",
+    "babel-plugin-react-compiler": "^19.0.0-beta-ebf51a3-20250411",
     "eslint-config-next": "^15.4.4",
     "postcss": "^8.5.10",
     "postcss-load-config": "^6.0.1",
