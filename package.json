@@ -20,7 +20,6 @@
     "lint": "next lint",
     "format": "npx prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "npx prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "prepare": "husky install",
     "knip": "npx knip",
     "knip:exports": "npx knip --exports",
     "knip:deps": "npx knip --dependencies",
