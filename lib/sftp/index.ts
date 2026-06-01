@@ -175,7 +175,7 @@ export async function getFileInfo(
       return {
         name: remotePath.split('/').pop() || '',
         path: stripRoot(fullPath),
-        type: stat.isDirectory() ? 'directory' : 'file',
+        type: (stat.mode && (stat.mode & 0o170000) === 0o040000) ? 'directory' : 'file',
         size: stat.size,
         modifyTime: new Date(stat.modifyTime * 1000),
         accessTime: new Date(stat.accessTime * 1000),
