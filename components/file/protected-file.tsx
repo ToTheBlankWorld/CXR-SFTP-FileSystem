@@ -1,13 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-
 import { FileActions } from '@/components/file/file-actions'
 import { AuthGuard } from '@/components/file/protected/auth-guard'
-import {
-  CODE_FILE_TYPES,
-  TEXT_FILE_TYPES,
-} from '@/components/file/protected/mime-types'
 import { FileViewer } from '@/components/file/viewer'
 
 import { sanitizeUrl } from '@/lib/utils/url'
@@ -30,14 +24,6 @@ export function ProtectedFile({
   file,
   verifiedPassword: initialVerifiedPassword,
 }: ProtectedFileProps) {
-  const [codeContent] = useState<string>()
-
-  const isTextBased = Boolean(
-    CODE_FILE_TYPES[file.mimeType] ||
-      TEXT_FILE_TYPES.includes(file.mimeType) ||
-      file.mimeType === 'text/csv'
-  )
-
   return (
     <AuthGuard file={file}>
       {(authGuardVerifiedPassword) => {
@@ -45,21 +31,19 @@ export function ProtectedFile({
           authGuardVerifiedPassword || initialVerifiedPassword
         return (
           <div className="space-y-4">
-            {}
+            {/* View the file */}
             <FileViewer
               file={file}
               verifiedPassword={currentVerifiedPassword}
             />
 
-            {}
+            {/* Actions */}
             <div className="flex items-center justify-center px-6 pb-4">
               <FileActions
                 urlPath={sanitizeUrl(file.urlPath)}
                 name={file.name}
+                mimeType={file.mimeType}
                 verifiedPassword={currentVerifiedPassword}
-                showOcr={file.mimeType.startsWith('image/')}
-                isTextBased={isTextBased}
-                content={codeContent}
                 fileId={file.id}
               />
             </div>
