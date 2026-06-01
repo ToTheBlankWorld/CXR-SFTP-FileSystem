@@ -6,6 +6,7 @@ import { prisma } from '@/lib/database/prisma'
 import { checkFolderAccess } from '@/lib/folders/access'
 import { checkFileAccess, FileAccessInfo } from '@/lib/files/access'
 import { normalizePath } from '@/lib/utils'
+import { resolveFileUrlPath } from '@/lib/files/resolve'
 
 const logger = loggers.files
 
@@ -34,11 +35,23 @@ export async function GET(request: Request) {
 
     let dbFile = null
     if (urlPath) {
+      let resolvedUrlPath = urlPath
+      const parts = urlPath.split('/').filter(Boolean)
+      if (parts.length >= 2) {
+        const userUrlId = parts[0]
+        const filename = parts.slice(1).join('/')
+        const canonical = await resolveFileUrlPath(userUrlId, filename)
+        if (canonical) {
+          resolvedUrlPath = canonical
+        }
+      }
+
       dbFile = await prisma.file.findUnique({
-        where: { urlPath },
+        where: { urlPath: resolvedUrlPath },
         include: { user: { select: { role: true } } },
       })
       if (!dbFile) {
+        logger.info(`serve GET urlPath=${urlPath} resolvedUrlPath=${resolvedUrlPath} file not found in DB`)
         return new Response(null, { status: 404 })
       }
       filePath = normalizePath(dbFile.path)
