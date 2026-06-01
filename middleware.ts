@@ -23,7 +23,13 @@ export async function middleware(request: NextRequest) {
       } else if (suffix === 'direct') {
         url.searchParams.set('direct', 'true')
       }
-      return NextResponse.rewrite(url)
+      const requestHeaders = new Headers(request.headers)
+      requestHeaders.set('x-urlpath', `/${userUrlId}/${filename}`)
+      return NextResponse.rewrite(url, {
+        request: {
+          headers: requestHeaders,
+        },
+      })
     }
     // For the preview page itself, bypass auth redirect so guest view works
     return NextResponse.next()

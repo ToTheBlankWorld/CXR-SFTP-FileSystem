@@ -12,8 +12,25 @@ const logger = loggers.files
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const urlPath = searchParams.get('urlPath')
+    let urlPath = searchParams.get('urlPath')
     let filePath = searchParams.get('path')
+
+    if (!urlPath && !filePath) {
+      // Fallback: check custom request header
+      urlPath = request.headers.get('x-urlpath')
+
+      // Fallback: parse original pathname if searchParams / headers are not present
+      if (!urlPath) {
+        const reqUrl = new URL(request.url)
+        const canonicalMatch = reqUrl.pathname.match(
+          /^\/([A-Za-z0-9][A-Za-z0-9-]{1,31}[A-Za-z0-9])\/([^\/]+\.[^\/]+)(?:\/(raw|direct))?$/
+        )
+        if (canonicalMatch) {
+          const [_, userUrlId, filename] = canonicalMatch
+          urlPath = `/${userUrlId}/${filename}`
+        }
+      }
+    }
 
     let dbFile = null
     if (urlPath) {
