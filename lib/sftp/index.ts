@@ -184,7 +184,8 @@ export async function getFileInfo(
         group: stat.gid,
       }
     })
-  } catch {
+  } catch (error) {
+    logger.error(`getFileInfo error for ${remotePath}:`, error as Error)
     return null
   }
 }
