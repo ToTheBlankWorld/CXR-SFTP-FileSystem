@@ -12,6 +12,8 @@ const logger = loggers.files
 
 export async function GET(request: Request) {
   try {
+    console.log(`[Serve Route] Incoming request: url=${request.url}`)
+    console.log(`[Serve Route] Headers: x-urlpath=${request.headers.get('x-urlpath')}`)
     const { searchParams } = new URL(request.url)
     let urlPath = searchParams.get('urlPath')
     let filePath = searchParams.get('path')
@@ -52,7 +54,7 @@ export async function GET(request: Request) {
       })
       if (!dbFile) {
         logger.info(`serve GET urlPath=${urlPath} resolvedUrlPath=${resolvedUrlPath} file not found in DB`)
-        return new Response(null, { status: 404 })
+        return new Response(`File not found in database for path: ${resolvedUrlPath}`, { status: 404 })
       }
       filePath = normalizePath(dbFile.path)
     } else if (filePath) {
@@ -69,7 +71,7 @@ export async function GET(request: Request) {
 
     const info = await getFileInfo(filePath)
     if (!info || info.type !== 'file') {
-      return new Response(null, { status: 404 })
+      return new Response(`File not found in SFTP/storage for path: ${filePath}`, { status: 404 })
     }
 
     // Get current session user
@@ -105,7 +107,7 @@ export async function GET(request: Request) {
           headers: { 'Content-Type': 'application/json' },
         })
       }
-      return new Response(null, { status: 404 })
+      return new Response(`Folder access denied: ${folderAccess.reason}`, { status: 404 })
     }
 
     const fileAccessInfo: FileAccessInfo = dbFile
@@ -140,7 +142,7 @@ export async function GET(request: Request) {
           headers: { 'Content-Type': 'application/json' },
         })
       }
-      return new Response(null, { status: 404 })
+      return new Response(`File access denied: ${fileAccess.reason}`, { status: 404 })
     }
 
     if (checkOnly) {

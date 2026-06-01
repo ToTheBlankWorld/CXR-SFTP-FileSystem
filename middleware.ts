@@ -10,10 +10,12 @@ const API_CANONICAL_URL_PATTERN = /^\/api\/files\/([A-Za-z0-9][A-Za-z0-9-]{1,31}
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
+  console.log(`[Middleware] Path: ${pathname}`)
 
   const canonicalMatch = pathname.match(CANONICAL_URL_PATTERN)
   if (canonicalMatch) {
     const [_, userUrlId, filename, suffix] = canonicalMatch
+    console.log(`[Middleware] Canonical match: userUrlId=${userUrlId}, filename=${filename}, suffix=${suffix}`)
     if (suffix === 'raw' || suffix === 'direct') {
       const url = request.nextUrl.clone()
       url.pathname = '/api/files/serve'
@@ -23,13 +25,8 @@ export async function middleware(request: NextRequest) {
       } else if (suffix === 'direct') {
         url.searchParams.set('direct', 'true')
       }
-      const requestHeaders = new Headers(request.headers)
-      requestHeaders.set('x-urlpath', `/${userUrlId}/${filename}`)
-      return NextResponse.rewrite(url, {
-        request: {
-          headers: requestHeaders,
-        },
-      })
+      console.log(`[Middleware] Rewriting raw/direct to: ${url.pathname}${url.search}`)
+      return NextResponse.rewrite(url)
     }
     // For the preview page itself, bypass auth redirect so guest view works
     return NextResponse.next()
