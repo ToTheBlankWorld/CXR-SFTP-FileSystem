@@ -21,9 +21,7 @@ export function bytesToMB(bytes: number): number {
   return bytes / (1024 * 1024)
 }
 
-export function formatFileSize(mb: number, decimals = 2): string {
-  const bytes = mb * 1024 * 1024
-
+export function formatFileSize(bytes: number, decimals = 2): string {
   if (bytes === 0) return '0 Bytes'
 
   if (bytes < 1024) {
@@ -40,3 +38,4 @@ export function formatFileSize(mb: number, decimals = 2): string {
 
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(decimals)} GB`
 }
+
