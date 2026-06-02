@@ -1,6 +1,6 @@
 import { PassThrough, Readable } from 'stream'
 
-import { getFileStream, listAllFilesRecursive } from '@/lib/sftp'
+import { downloadFile, listAllFilesRecursive } from '@/lib/sftp'
 import { requireAuth } from '@/lib/auth/api-auth'
 import { loggers } from '@/lib/logger'
 import { checkFolderAccess } from '@/lib/folders/access'
@@ -64,8 +64,8 @@ export async function GET(
         ? file.path.slice(folderPath.length).replace(/^\//, '')
         : file.name
 
-      const stream = await getFileStream(file.path)
-      archive.append(stream as Readable, { name: relPath })
+      const buffer = await downloadFile(file.path)
+      archive.append(buffer, { name: relPath })
     }
 
     archive.finalize()
