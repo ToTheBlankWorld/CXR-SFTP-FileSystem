@@ -316,26 +316,10 @@ export function FolderCard({
     }
 
     if (folder.hasPassword) {
-      // Check if we have the password saved in localStorage
-      let savedPassword = ''
-      try {
-        const stored = localStorage.getItem('cxr_folder_passwords')
-        if (stored) {
-          const parsed = JSON.parse(stored)
-          savedPassword = parsed[folder.id]
-        }
-      } catch (err) {
-        console.error('Failed to parse saved passwords', err)
-      }
-
-      if (savedPassword) {
-        triggerDownload(savedPassword)
-      } else {
-        // Open password prompt dialog
-        setDownloadPassword('')
-        setDownloadPasswordError(null)
-        setIsPasswordPromptOpen(true)
-      }
+      // Always prompt for password on download
+      setDownloadPassword('')
+      setDownloadPasswordError(null)
+      setIsPasswordPromptOpen(true)
     } else {
       triggerDownload()
     }
