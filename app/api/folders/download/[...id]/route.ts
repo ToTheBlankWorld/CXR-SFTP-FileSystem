@@ -1,4 +1,4 @@
-import { PassThrough, Readable } from 'stream'
+import { PassThrough } from 'stream'
 
 import { downloadFile, listAllFilesRecursive } from '@/lib/sftp'
 import { requireAuth } from '@/lib/auth/api-auth'
