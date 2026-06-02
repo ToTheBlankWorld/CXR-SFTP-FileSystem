@@ -52,8 +52,8 @@ export async function GET(
       return new Response('Folder is empty', { status: 404 })
     }
 
-    const archiver = await import('archiver').then((m) => m.default || m)
-    const archive = (archiver as (format: string, opts?: Record<string, unknown>) => { pipe: (dest: PassThrough) => void; append: (src: Readable, data: { name: string }) => void; finalize: () => void })('zip', { zlib: { level: 1 } })
+    const { ZipArchive } = await import('archiver')
+    const archive = new ZipArchive({ zlib: { level: 1 } })
     const passThrough = new PassThrough()
     archive.pipe(passThrough)
 

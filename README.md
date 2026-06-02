@@ -56,6 +56,10 @@ To deliver an enterprise-grade experience, the system implements several deep-le
 ### 🔢 Precise Size Units
 * **Byte Conversion**: Adjusted [formatFileSize](file:///D:/My%20Projects/CXR-File-System/-CXR-Lab-File-System/lib/utils/formatting.ts#L24) in [formatting.ts](file:///D:/My%20Projects/CXR-File-System/-CXR-Lab-File-System/lib/utils/formatting.ts) to correctly handle raw input bytes, showing correct file sizes (e.g. `KB`/`MB`) instead of scaling bytes improperly.
 
+### 📦 High-Performance Folder Compression Engine
+* **ZipArchive Class Integration**: Upgraded the folder packaging route in [route.ts](file:///D:/My%20Projects/CXR-File-System/-CXR-Lab-File-System/app/api/folders/download/%5B...id%5D/route.ts) to construct archives using the new ES-module compatible `ZipArchive` class from `archiver@8.0.0`, eliminating runtime `TypeError: archiver is not a function` bugs.
+* **Format & Extension Matching**: Standardized the frontend download tag in [index.tsx](file:///D:/My%20Projects/CXR-File-System/-CXR-Lab-File-System/components/dashboard/folder-card/index.tsx) to download folders with the matching `.zip` extension instead of legacy `.tar` parameters.
+
 ---
 
 ## 🏛️ System Architecture

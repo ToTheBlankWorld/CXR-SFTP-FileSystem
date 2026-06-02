@@ -339,7 +339,7 @@ export function FolderCard({
                       }
                       const a = document.createElement('a')
                       a.href = `/api/folders/download/${folderPathSegment}`
-                      a.download = `${folder.name}.tar`
+                      a.download = `${folder.name}.zip`
                       document.body.appendChild(a)
                       a.click()
                       document.body.removeChild(a)

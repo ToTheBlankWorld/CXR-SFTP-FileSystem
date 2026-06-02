@@ -17,7 +17,11 @@ declare module 'archiver' {
     finalize(): void
   }
 
-  function archiver(format: string, options?: ArchiverOptions): Archiver
+  export class ZipArchive extends Archiver {
+    constructor(options?: ArchiverOptions)
+  }
 
-  export default archiver
+  export class TarArchive extends Archiver {
+    constructor(options?: ArchiverOptions)
+  }
 }
