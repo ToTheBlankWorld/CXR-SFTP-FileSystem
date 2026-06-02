@@ -10,6 +10,7 @@ export interface FolderType {
   visibility?: 'PUBLIC' | 'PRIVATE' | 'USERS_AND_ADMINS' | 'USER_ONLY' | 'TEAM'
   isMember?: boolean
   teamLeaderId?: string | null
+  hasPassword?: boolean
 }
 
 export interface FolderMemberInfo {

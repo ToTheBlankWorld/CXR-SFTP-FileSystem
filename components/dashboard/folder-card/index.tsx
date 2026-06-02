@@ -81,6 +81,12 @@ export function FolderCard({
   const [permissionErrorMsg, setPermissionErrorMsg] = useState('')
   const [isTeamAccessDeniedOpen, setIsTeamAccessDeniedOpen] = useState(false)
 
+  // Password prompt state for downloading folder
+  const [isPasswordPromptOpen, setIsPasswordPromptOpen] = useState(false)
+  const [downloadPassword, setDownloadPassword] = useState('')
+  const [downloadPasswordError, setDownloadPasswordError] = useState<string | null>(null)
+  const [isVerifyingPassword, setIsVerifyingPassword] = useState(false)
+
   const [isTeamOpen, setIsTeamOpen] = useState(false)
   const [members, setMembers] = useState<FolderMemberInfo[]>([])
   const [isLoadingMembers, setIsLoadingMembers] = useState(false)
@@ -293,6 +299,96 @@ export function FolderCard({
     }
   }
 
+  const triggerDownload = (password?: string) => {
+    const a = document.createElement('a')
+    const passwordParam = password ? `?password=${encodeURIComponent(password)}` : ''
+    a.href = `/api/folders/download/${folderPathSegment}${passwordParam}`
+    a.download = `${folder.name}.zip`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+
+  const handleDownloadClick = async () => {
+    if (!canEnterFolder) {
+      setIsTeamAccessDeniedOpen(true)
+      return
+    }
+
+    if (folder.hasPassword) {
+      // Check if we have the password saved in localStorage
+      let savedPassword = ''
+      try {
+        const stored = localStorage.getItem('cxr_folder_passwords')
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          savedPassword = parsed[folder.id]
+        }
+      } catch (err) {
+        console.error('Failed to parse saved passwords', err)
+      }
+
+      if (savedPassword) {
+        triggerDownload(savedPassword)
+      } else {
+        // Open password prompt dialog
+        setDownloadPassword('')
+        setDownloadPasswordError(null)
+        setIsPasswordPromptOpen(true)
+      }
+    } else {
+      triggerDownload()
+    }
+  }
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!downloadPassword.trim()) return
+
+    setIsVerifyingPassword(true)
+    setDownloadPasswordError(null)
+
+    try {
+      let storedPasswords: Record<string, string> = {}
+      try {
+        const stored = localStorage.getItem('cxr_folder_passwords')
+        if (stored) {
+          storedPasswords = JSON.parse(stored)
+        }
+      } catch (err) {
+        console.error('Failed to parse saved passwords', err)
+      }
+
+      const nextPasswords = {
+        ...storedPasswords,
+        [folder.id]: downloadPassword,
+      }
+
+      const headers: Record<string, string> = {
+        'x-folder-password': encodeURIComponent(JSON.stringify(nextPasswords))
+      }
+
+      const res = await fetch(`/api/folders?parentId=${encodeURIComponent(folder.id)}`, { headers })
+
+      if (res.ok) {
+        localStorage.setItem('cxr_folder_passwords', JSON.stringify(nextPasswords))
+        setIsPasswordPromptOpen(false)
+        triggerDownload(downloadPassword)
+      } else {
+        const errData = await res.json().catch(() => ({}))
+        setDownloadPasswordError(
+          errData.error === 'password_invalid'
+            ? 'Incorrect password. Please try again.'
+            : 'Access denied.'
+        )
+      }
+    } catch {
+      setDownloadPasswordError('An error occurred. Please try again.')
+    } finally {
+      setIsVerifyingPassword(false)
+    }
+  }
+
   const memberIds = new Set(members.map((m) => m.id))
   const usersToShow = availableUsers.filter((u) => !memberIds.has(u.id) && u.id !== folder.userId)
 
@@ -333,16 +429,7 @@ export function FolderCard({
                     className="h-8 w-8 glass-hover"
                     onClick={(e) => {
                       e.stopPropagation()
-                      if (!canEnterFolder) {
-                        setIsTeamAccessDeniedOpen(true)
-                        return
-                      }
-                      const a = document.createElement('a')
-                      a.href = `/api/folders/download/${folderPathSegment}`
-                      a.download = `${folder.name}.zip`
-                      document.body.appendChild(a)
-                      a.click()
-                      document.body.removeChild(a)
+                      handleDownloadClick()
                     }}
                   >
                     <Download className="h-4 w-4" />
@@ -730,6 +817,56 @@ export function FolderCard({
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isPasswordPromptOpen} onOpenChange={setIsPasswordPromptOpen}>
+        <DialogContent className="sm:max-w-md border border-border/50 bg-background/95 backdrop-blur-xl shadow-2xl rounded-2xl text-foreground">
+          <DialogHeader className="flex flex-col items-center gap-4 text-center">
+            <div className="rounded-full bg-blue-500/10 p-3 ring-2 ring-blue-500/40">
+              <Shield className="h-7 w-7 text-blue-500" />
+            </div>
+            <DialogTitle className="text-xl font-bold tracking-tight">
+              Password Required
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handlePasswordSubmit} className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground text-center leading-relaxed">
+              This folder is password protected. Enter the password to download <strong>{folder.name}.zip</strong>.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="download-password">Password</Label>
+              <Input
+                id="download-password"
+                type="password"
+                placeholder="Enter password..."
+                value={downloadPassword}
+                onChange={(e) => setDownloadPassword(e.target.value)}
+                className="w-full bg-background/50 border-border/40 focus:border-primary/50"
+              />
+              {downloadPasswordError && (
+                <p className="text-xs text-red-500 font-medium">{downloadPasswordError}</p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsPasswordPromptOpen(false)}
+                disabled={isVerifyingPassword}
+                className="rounded-xl border border-border/40"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isVerifyingPassword}
+                className="rounded-xl shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              >
+                {isVerifyingPassword ? 'Verifying...' : 'Download'}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </>
