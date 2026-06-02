@@ -12,7 +12,7 @@ declare module 'archiver' {
     date?: Date
   }
 
-  interface Archiver extends Transform {
+  export class Archiver extends Transform {
     append(source: string | Buffer | Readable, data: EntryData): this
     finalize(): void
   }
