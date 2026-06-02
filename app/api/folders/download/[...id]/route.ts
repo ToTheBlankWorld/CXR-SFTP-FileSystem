@@ -1,7 +1,7 @@
 import { PassThrough } from 'stream'
 
 import { downloadFile, listAllFilesRecursive } from '@/lib/sftp'
-import { requireAuth } from '@/lib/auth/api-auth'
+import { getAuthenticatedUser } from '@/lib/auth/api-auth'
 import { loggers } from '@/lib/logger'
 import { checkFolderAccess } from '@/lib/folders/access'
 import { normalizePath } from '@/lib/utils'
@@ -13,8 +13,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string[] }> }
 ) {
   try {
-    const auth = await requireAuth(request)
-    if (auth.response) return auth.response
+    const user = await getAuthenticatedUser(request)
+    const session = user ? { user } : null
 
     const { id } = await params
     const folderPath = normalizePath('/' + id.map(decodeURIComponent).join('/'))
@@ -36,7 +36,7 @@ export async function GET(
       providedPasswords = passwordParam
     }
 
-    const accessResult = await checkFolderAccess(folderPath, auth, providedPasswords)
+    const accessResult = await checkFolderAccess(folderPath, session, providedPasswords)
     if (!accessResult.allowed) {
       if (accessResult.reason === 'password_required' || accessResult.reason === 'password_invalid') {
         return new Response(JSON.stringify({ error: accessResult.reason }), {
