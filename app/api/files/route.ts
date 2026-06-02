@@ -175,6 +175,7 @@ export async function GET(request: Request) {
 
         filteredFiles.push({
           ...file,
+          size: dbFile.size ?? file.size,
           urlPath: dbFile.urlPath,
           userId: dbFile.userId,
           visibility: dbFile.visibility,

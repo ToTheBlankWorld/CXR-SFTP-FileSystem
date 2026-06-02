@@ -45,7 +45,7 @@ import {
 } from '@/components/ui/tooltip'
 
 import { useToast } from '@/hooks/use-toast'
-import { formatBytes } from '@/lib/utils'
+import { formatFileSize } from '@/lib/utils'
 
 interface FolderCardProps {
   folder: FolderType
@@ -299,14 +299,12 @@ export function FolderCard({
   return (
     <>
       <Card
-        className="group relative overflow-hidden bg-background/40 backdrop-blur-xl border-border/50 shadow-lg shadow-black/5 hover:shadow-xl hover:shadow-black/10 transition-all duration-300 hover:bg-background/60 cursor-pointer"
+        className="group relative overflow-hidden bg-card border-border/50 shadow-sm hover:shadow-md transition-shadow duration-200 hover:bg-muted/30 cursor-pointer"
         onClick={handleCardClick}
       >
-        <div className="relative aspect-square bg-gradient-to-br from-blue-950/40 via-black/20 to-blue-900/20 flex items-center justify-center overflow-hidden transition-all duration-500 group-hover:from-blue-950/60 group-hover:to-blue-900/40">
-          <div className="absolute w-24 h-24 rounded-full bg-blue-500/15 blur-xl opacity-0 group-hover:opacity-100 transition-all duration-500" />
-          <Folder className="h-20 w-20 text-blue-500/40 absolute blur-md opacity-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500" />
-          <Folder className="h-20 w-20 text-blue-500/60 transition-all duration-500 ease-out group-hover:scale-110 group-hover:opacity-0" />
-          <FolderOpen className="h-20 w-20 text-blue-400/80 absolute opacity-0 scale-95 transition-all duration-500 ease-out group-hover:opacity-100 group-hover:scale-110" />
+        <div className="relative aspect-square bg-gradient-to-br from-blue-950/40 via-black/20 to-blue-900/20 flex items-center justify-center overflow-hidden">
+          <Folder className="h-20 w-20 text-blue-500/60 transition-opacity duration-200 group-hover:opacity-0" />
+          <FolderOpen className="h-20 w-20 text-blue-400/80 absolute opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
 
           {isTeamFolder && (
             <div className="absolute top-2 right-2 flex gap-1.5">
@@ -433,7 +431,7 @@ export function FolderCard({
             </TooltipProvider>
             {folder.size !== undefined && (
               <span className="text-xs text-muted-foreground whitespace-nowrap">
-                {formatBytes(folder.size)}
+                {formatFileSize(folder.size)}
               </span>
             )}
           </div>
@@ -683,7 +681,7 @@ export function FolderCard({
         <DialogContent className="sm:max-w-md border border-red-500/20 bg-black/90 backdrop-blur-xl shadow-[0_0_50px_rgba(239,68,68,0.15)] text-foreground">
           <DialogHeader className="flex flex-col items-center gap-4 text-center">
             <div className="rounded-full bg-red-500/10 p-3 ring-1 ring-red-500/30">
-              <ShieldAlert className="h-6 w-6 text-red-500 animate-pulse" />
+              <ShieldAlert className="h-6 w-6 text-red-500" />
             </div>
             <DialogTitle className="text-xl font-bold tracking-tight">Permission Denied</DialogTitle>
           </DialogHeader>
@@ -708,7 +706,7 @@ export function FolderCard({
         <DialogContent className="sm:max-w-md border border-red-500/30 bg-black/95 backdrop-blur-xl shadow-[0_0_60px_rgba(239,68,68,0.25)] text-foreground">
           <DialogHeader className="flex flex-col items-center gap-4 text-center">
             <div className="rounded-full bg-red-500/10 p-3 ring-2 ring-red-500/40">
-              <ShieldAlert className="h-7 w-7 text-red-500 animate-pulse" />
+              <ShieldAlert className="h-7 w-7 text-red-500" />
             </div>
             <DialogTitle className="text-xl font-bold tracking-tight text-red-100">
               Restricted Team Folder

@@ -30,7 +30,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
-import { formatBytes, getRelativeTime } from '@/lib/utils'
+import { formatFileSize, getRelativeTime } from '@/lib/utils'
 
 import { useToast } from '@/hooks/use-toast'
 
@@ -104,7 +104,7 @@ export function FileCard({ file: initialFile, onDelete }: FileCardProps) {
   }
 
   return (
-    <Card className="group relative overflow-hidden bg-background/40 backdrop-blur-xl border-border/50 shadow-lg shadow-black/5 hover:shadow-xl hover:shadow-black/10 transition-all duration-300 hover:bg-background/60">
+    <Card className="group relative overflow-hidden bg-card border-border/50 shadow-sm hover:shadow-md transition-shadow duration-200 hover:bg-muted/30">
       <div className="relative">
         <Link href={file.urlPath} className="block">
           <div className="relative aspect-square bg-muted flex items-center justify-center">
@@ -210,7 +210,7 @@ export function FileCard({ file: initialFile, onDelete }: FileCardProps) {
             </Tooltip>
           </TooltipProvider>
           <span className="text-xs text-muted-foreground whitespace-nowrap">
-            {formatBytes(file.size)}
+            {formatFileSize(file.size)}
           </span>
         </div>
       </div>
@@ -250,7 +250,7 @@ export function FileCard({ file: initialFile, onDelete }: FileCardProps) {
         <DialogContent className="sm:max-w-md border border-red-500/20 bg-black/90 backdrop-blur-xl shadow-[0_0_50px_rgba(239,68,68,0.15)] text-foreground">
           <DialogHeader className="flex flex-col items-center gap-4 text-center">
             <div className="rounded-full bg-red-500/10 p-3 ring-1 ring-red-500/30">
-              <ShieldAlert className="h-6 w-6 text-red-500 animate-pulse" />
+              <ShieldAlert className="h-6 w-6 text-red-500" />
             </div>
             <DialogTitle className="text-xl font-bold tracking-tight">Permission Denied</DialogTitle>
           </DialogHeader>

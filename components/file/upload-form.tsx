@@ -428,7 +428,7 @@ export function UploadForm() {
           className="flex w-full items-center justify-between p-4 hover:bg-muted/30 transition-colors"
         >
           <div className="flex items-center gap-2">
-            <Settings2 className="h-5 w-5 text-primary animate-pulse" />
+            <Settings2 className="h-5 w-5 text-primary" />
             <span className="font-semibold text-sm tracking-wide">Advanced Access Control Options</span>
           </div>
           {showAdvanced ? (

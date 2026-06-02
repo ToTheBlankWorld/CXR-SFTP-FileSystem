@@ -343,12 +343,9 @@ export function FileGrid() {
     if (passwordRequired) {
       return (
         <div className="flex flex-col items-center justify-center py-12 px-4 animate-in fade-in duration-500">
-          <Card className="w-full max-w-md p-8 border border-primary/20 bg-card/60 backdrop-blur-xl shadow-2xl relative overflow-hidden rounded-2xl">
-            <div className="absolute -top-10 -right-10 w-24 h-24 bg-primary/20 rounded-full blur-2xl animate-pulse" />
-            <div className="absolute -bottom-10 -left-10 w-24 h-24 bg-primary/20 rounded-full blur-2xl animate-pulse" />
-
+          <Card className="w-full max-w-md p-8 border border-primary/20 bg-card shadow-lg relative overflow-hidden rounded-2xl">
             <div className="flex flex-col items-center text-center space-y-4">
-              <div className="p-4 rounded-full bg-primary/10 border border-primary/20 text-primary animate-bounce">
+              <div className="p-4 rounded-full bg-primary/10 border border-primary/20 text-primary">
                 <Lock className="h-8 w-8" />
               </div>
               <div className="space-y-1">
