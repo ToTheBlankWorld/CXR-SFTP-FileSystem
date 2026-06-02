@@ -110,7 +110,7 @@ export function DashboardNav() {
       </div>
 
       <div className="hidden md:flex flex-1 justify-center">
-        <div className="flex items-center space-x-1 bg-muted/20 backdrop-blur-sm rounded-xl p-1 border border-border/30">
+        <div className="flex items-center space-x-1 bg-muted/40 rounded-xl p-1 border border-border/30">
           {routes.map((route) => {
             const isActive = pathname === route.href
             return (

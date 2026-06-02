@@ -10,7 +10,7 @@ export function Footer() {
       <div className="max-w-7xl mx-auto">
         <div className="relative">
           <div className="absolute inset-0 bg-gradient-to-r from-primary/3 via-transparent to-accent/3 rounded-2xl" />
-          <div className="relative bg-background/40 backdrop-blur-xl border border-border/50 rounded-2xl px-6 py-4 shadow-lg shadow-black/5">
+          <div className="relative bg-background/80 border border-border/50 rounded-2xl px-6 py-4 shadow-lg shadow-black/5">
             <div className="flex items-center justify-between gap-6">
               <p className="text-sm text-muted-foreground">
                 CXR-Lab File System is a local LAN-based file sharing and
@@ -19,7 +19,7 @@ export function Footer() {
               <Button
                 variant="outline"
                 size="sm"
-                className="bg-background/60 backdrop-blur-sm border-border/50"
+                className="bg-background/60 border-border/50"
                 asChild
               >
                 <Link
