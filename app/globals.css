@@ -22,11 +22,19 @@ body {
 }
 
 @layer base {
+  html {
+    background:
+      radial-gradient(circle at 25% 25%, hsl(var(--primary) / 0.06) 0%, transparent 55%),
+      radial-gradient(circle at 75% 65%, hsl(var(--accent) / 0.04) 0%, transparent 55%),
+      hsl(var(--background));
+    min-height: 100%;
+  }
   * {
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    background: transparent;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }

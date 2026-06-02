@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { useRouter, useSearchParams } from 'next/navigation'
 
@@ -17,6 +17,8 @@ export function useFileFilters(
   const searchParams = useSearchParams()
   const router = useRouter()
   const defaultLimit = options.defaultLimit || 24
+  const onFilterChangeRef = useRef(options.onFilterChange)
+  onFilterChangeRef.current = options.onFilterChange
 
   const [filters, setFilters] = useState<FileFilterOptions>({
     search: searchParams.get('search') || '',
@@ -56,10 +58,10 @@ export function useFileFilters(
       )
     }
 
-    if (options.onFilterChange) {
-      options.onFilterChange(filters)
+    if (onFilterChangeRef.current) {
+      onFilterChangeRef.current(filters)
     }
-  }, [filters, router, defaultLimit, options])
+  }, [filters, router, defaultLimit])
 
   const setSearch = useCallback((search: string) => {
     setFilters((prev) => ({ ...prev, search, page: 1 }))
