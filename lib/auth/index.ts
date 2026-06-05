@@ -6,6 +6,9 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 
 import { prisma } from '@/lib/database/prisma'
 
+const userCache = new Map<string, { user: UserWithSession; timestamp: number }>()
+const CACHE_TTL_MS = 5000 // 5 seconds cache
+
 const userSelect = {
   id: true,
   email: true,
@@ -14,6 +17,8 @@ const userSelect = {
   role: true,
   image: true,
   sessionVersion: true,
+  urlId: true,
+  vanityId: true,
 } as const
 
 type UserWithSession = Prisma.UserGetPayload<{ select: typeof userSelect }>
@@ -26,6 +31,8 @@ declare module 'next-auth' {
       email: string
       image: string | null
       role: UserRole
+      urlId: string
+      vanityId: string | null
     }
   }
 }
@@ -38,6 +45,8 @@ declare module 'next-auth/jwt' {
     name?: string | null
     email?: string | null
     image?: string | null
+    urlId: string
+    vanityId: string | null
   }
 }
 
@@ -81,6 +90,8 @@ export const authOptions: NextAuthOptions = {
           role: user.role,
           image: user.image,
           sessionVersion: user.sessionVersion,
+          urlId: user.urlId,
+          vanityId: user.vanityId,
         }
       },
     }),
@@ -95,12 +106,25 @@ export const authOptions: NextAuthOptions = {
         token.sessionVersion = sessionUser.sessionVersion
         token.name = sessionUser.name
         token.email = sessionUser.email
+        token.urlId = sessionUser.urlId
+        token.vanityId = sessionUser.vanityId
       }
 
-      const freshUser = await prisma.user.findUnique({
-        where: { id: token.id },
-        select: userSelect,
-      })
+      const cached = userCache.get(token.id)
+      const now = Date.now()
+      let freshUser: UserWithSession | null = null
+
+      if (cached && now - cached.timestamp < CACHE_TTL_MS) {
+        freshUser = cached.user
+      } else {
+        freshUser = await prisma.user.findUnique({
+          where: { id: token.id },
+          select: userSelect,
+        })
+        if (freshUser) {
+          userCache.set(token.id, { user: freshUser, timestamp: now })
+        }
+      }
 
       if (!freshUser) {
         throw new Error('Session invalidated: User not found')
@@ -118,6 +142,8 @@ export const authOptions: NextAuthOptions = {
       token.name = freshUser.name
       token.email = freshUser.email
       token.sessionVersion = freshUser.sessionVersion
+      token.urlId = freshUser.urlId
+      token.vanityId = freshUser.vanityId
 
       return token
     },
@@ -128,6 +154,8 @@ export const authOptions: NextAuthOptions = {
         session.user.image = token.image || null
         session.user.name = token.name || ''
         session.user.email = token.email || ''
+        session.user.urlId = token.urlId
+        session.user.vanityId = token.vanityId
       }
       return session
     },

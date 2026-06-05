@@ -6,6 +6,8 @@ import { loggers } from '@/lib/logger'
 
 const logger = loggers.config
 
+let cachedConfig: FlareConfig | null = null
+
 export const configSchema = z.object({
   version: z.string(),
   settings: z.object({
@@ -134,16 +136,22 @@ export async function initConfig(): Promise<FlareConfig> {
 }
 
 export async function getConfig(): Promise<FlareConfig> {
+  if (cachedConfig) {
+    return cachedConfig
+  }
+
   try {
     const config = await prisma.config.findUnique({
       where: { key: 'flare_config' },
     })
 
     if (!config) {
-      return initConfig()
+      cachedConfig = await initConfig()
+      return cachedConfig
     }
 
-    return configSchema.parse(config.value)
+    cachedConfig = configSchema.parse(config.value)
+    return cachedConfig
   } catch (error) {
     logger.warn('Could not access database for config, using default', {
       error,
@@ -207,6 +215,7 @@ export async function updateConfig(
       },
     })
 
+    cachedConfig = validatedConfig
     logger.info('Configuration updated successfully')
     return validatedConfig
   } catch (error) {

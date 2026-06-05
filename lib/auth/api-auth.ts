@@ -17,16 +17,12 @@ export async function getAuthenticatedUser(
 ): Promise<AuthenticatedUser | null> {
   const session = await getServerSession(authOptions)
   if (session?.user) {
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: {
-        id: true,
-        urlId: true,
-        vanityId: true,
-        role: true,
-      },
-    })
-    return user
+    return {
+      id: session.user.id,
+      urlId: session.user.urlId,
+      vanityId: session.user.vanityId,
+      role: session.user.role,
+    }
   }
 
   const authHeader = req.headers.get('authorization')
