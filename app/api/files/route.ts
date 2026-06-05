@@ -1,5 +1,6 @@
 import { listDir, uploadFile, deleteFile, rename } from '@/lib/sftp'
 import { getMimeType } from '@/lib/sftp/mime'
+import { Readable } from 'stream'
 import { HTTP_STATUS, apiError, apiResponse, paginatedResponse } from '@/lib/api/response'
 import { requireAuth } from '@/lib/auth/api-auth'
 import { prisma } from '@/lib/database/prisma'
@@ -229,25 +230,66 @@ export async function POST(req: Request) {
     const auth = await requireAuth(req)
     if (auth.response) return auth.response
 
-    const formData = await req.formData()
-    const uploadedFile = formData.get('file') as File
-    const targetPath = normalizePath((formData.get('path') as string) || '/')
-    const subpath = (formData.get('subpath') as string) || ''
-    const fullpath = (formData.get('fullpath') as string) || ''
+    const uploadType = req.headers.get('x-upload-type')
 
-    // Access settings parameters
-    const password = formData.get('password') as string | null
-    const visibility = ((formData.get('visibility') as string) || 'PUBLIC') as FileVisibility
-    const expiresAt = formData.get('expiresAt') as string | null
+    let fileStream: Readable
+    let fileName: string
+    let fileSize: number
+    let fileType: string
+    let targetPath: string
+    let subpath = ''
+    let fullpath = ''
 
-    if (!uploadedFile) {
-      return apiError('No file provided', HTTP_STATUS.BAD_REQUEST)
+    let password: string | null = null
+    let visibility: FileVisibility = 'PUBLIC'
+    let expiresAt: string | null = null
+
+    if (uploadType === 'raw') {
+      fileName = decodeURIComponent(req.headers.get('x-file-name') || '')
+      targetPath = normalizePath(decodeURIComponent(req.headers.get('x-target-path') || '/'))
+      subpath = decodeURIComponent(req.headers.get('x-subpath') || '')
+      fullpath = decodeURIComponent(req.headers.get('x-fullpath') || '')
+      fileSize = parseInt(req.headers.get('content-length') || '0', 10)
+      fileType = getMimeType(fileName) || 'application/octet-stream'
+
+      password = req.headers.get('x-file-password') ? decodeURIComponent(req.headers.get('x-file-password')!) : null
+      visibility = (req.headers.get('x-file-visibility') || 'PUBLIC') as FileVisibility
+      expiresAt = req.headers.get('x-file-expires-at')
+
+      if (!req.body) {
+        return apiError('No file body provided', HTTP_STATUS.BAD_REQUEST)
+      }
+
+      fileStream = Readable.fromWeb(req.body as unknown as import('stream/web').ReadableStream)
+    } else {
+      const formData = await req.formData()
+      const uploadedFile = formData.get('file') as File
+      if (!uploadedFile) {
+        return apiError('No file provided', HTTP_STATUS.BAD_REQUEST)
+      }
+      fileName = uploadedFile.name
+      fileSize = uploadedFile.size
+      fileType = uploadedFile.type || 'application/octet-stream'
+      targetPath = normalizePath((formData.get('path') as string) || '/')
+      subpath = (formData.get('subpath') as string) || ''
+      fullpath = (formData.get('fullpath') as string) || ''
+
+      password = formData.get('password') as string | null
+      visibility = ((formData.get('visibility') as string) || 'PUBLIC') as FileVisibility
+      expiresAt = formData.get('expiresAt') as string | null
+
+      const bytes = await uploadedFile.arrayBuffer()
+      fileStream = Readable.from(Buffer.from(bytes))
+    }
+
+    if (!fileName) {
+      return apiError('No file name provided', HTTP_STATUS.BAD_REQUEST)
     }
 
     if (auth.user?.role !== 'ADMIN' && auth.user?.role !== 'OWNER') {
       const config = await (await import('@/lib/config')).getConfig()
       const maxFileSize = config.settings.general.maxFileSize
-      if (uploadedFile.size > maxFileSize) {
+      if (fileSize > maxFileSize) {
         return apiError(`File exceeds the maximum file size limit of ${Math.round(maxFileSize / 1024 / 1024)}MB`, HTTP_STATUS.PAYLOAD_TOO_LARGE)
       }
     }
@@ -269,14 +311,12 @@ export async function POST(req: Request) {
       return apiError("You don't have permission to upload files inside this directory", HTTP_STATUS.FORBIDDEN)
     }
 
-    const bytes = await uploadedFile.arrayBuffer()
-    const buffer = Buffer.from(bytes)
-    const fileName = fullpath || (subpath ? `${subpath}/${uploadedFile.name}` : uploadedFile.name)
-    const remotePath = normalizePath(`${targetPath}/${fileName}`)
+    const finalFileName = fullpath || (subpath ? `${subpath}/${fileName}` : fileName)
+    const remotePath = normalizePath(`${targetPath}/${finalFileName}`)
 
-    logger.info('upload targetPath=' + targetPath + ' subpath=' + subpath + ' fullpath=' + fullpath + ' fileName=' + uploadedFile.name + ' remotePath=' + remotePath)
+    logger.info('upload targetPath=' + targetPath + ' subpath=' + subpath + ' fullpath=' + fullpath + ' fileName=' + fileName + ' remotePath=' + remotePath)
 
-    await uploadFile(buffer, remotePath)
+    await uploadFile(fileStream, remotePath)
 
     let hashedPassword = null
     if (password) {
@@ -300,13 +340,13 @@ export async function POST(req: Request) {
 
     const urlPath = existingFile?.urlPath && !existingFile.urlPath.startsWith('/api/files/serve')
       ? existingFile.urlPath
-      : await generateUniqueUrlPath(userUrlId, uploadedFile.name)
+      : await generateUniqueUrlPath(userUrlId, fileName)
 
     await prisma.file.upsert({
       where: { path: remotePath },
       update: {
-        size: uploadedFile.size,
-        name: uploadedFile.name,
+        size: fileSize,
+        name: fileName,
         visibility,
         password: hashedPassword,
         expiresAt: parsedExpiresAt,
@@ -314,10 +354,10 @@ export async function POST(req: Request) {
       },
       create: {
         path: remotePath,
-        name: uploadedFile.name,
+        name: fileName,
         urlPath,
-        mimeType: uploadedFile.type || 'application/octet-stream',
-        size: uploadedFile.size,
+        mimeType: fileType,
+        size: fileSize,
         visibility,
         password: hashedPassword,
         expiresAt: parsedExpiresAt,
@@ -331,9 +371,9 @@ export async function POST(req: Request) {
 
     return apiResponse({
       url: urlPath,
-      name: uploadedFile.name,
-      size: uploadedFile.size,
-      type: uploadedFile.type,
+      name: fileName,
+      size: fileSize,
+      type: fileType,
       visibility,
       hasPassword: !!password,
       expiresAt: expiresAt || null,

@@ -308,27 +308,8 @@ export function UploadForm({ maxFileSize, maxFolderSize }: UploadFormProps) {
         const displayName = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
 
         try {
-          const formData = new FormData()
-          formData.append('file', file)
-          formData.append('path', uploadPath)
-
           const relPath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || ''
           const dirPart = relPath.substring(0, relPath.lastIndexOf('/'))
-          if (dirPart) {
-            formData.append('subpath', dirPart)
-            formData.append('fullpath', relPath)
-          }
-
-          // Append access protection options if enabled
-          if (enablePassword && passwordValue) {
-            formData.append('password', passwordValue)
-          }
-          if (enableVisibility) {
-            formData.append('visibility', visibilityValue)
-          }
-          if (enableExpiration && expirationValue) {
-            formData.append('expiresAt', new Date(expirationValue).toISOString())
-          }
 
           await new Promise<void>((resolve, reject) => {
             const xhr = new XMLHttpRequest()
@@ -352,13 +333,34 @@ export function UploadForm({ maxFileSize, maxFolderSize }: UploadFormProps) {
 
             xhr.open('POST', '/api/files')
 
+            // Custom headers for raw upload
+            xhr.setRequestHeader('x-upload-type', 'raw')
+            xhr.setRequestHeader('x-file-name', encodeURIComponent(file.name))
+            xhr.setRequestHeader('x-target-path', encodeURIComponent(uploadPath))
+            
+            if (dirPart) {
+              xhr.setRequestHeader('x-subpath', encodeURIComponent(dirPart))
+              xhr.setRequestHeader('x-fullpath', encodeURIComponent(relPath))
+            }
+
+            // Append access protection options if enabled
+            if (enablePassword && passwordValue) {
+              xhr.setRequestHeader('x-file-password', encodeURIComponent(passwordValue))
+            }
+            if (enableVisibility) {
+              xhr.setRequestHeader('x-file-visibility', visibilityValue)
+            }
+            if (enableExpiration && expirationValue) {
+              xhr.setRequestHeader('x-file-expires-at', new Date(expirationValue).toISOString())
+            }
+
             // Pass unlocked passwords from localStorage
             const storedPasswords = localStorage.getItem('cxr_folder_passwords')
             if (storedPasswords) {
               xhr.setRequestHeader('x-folder-password', encodeURIComponent(storedPasswords))
             }
 
-            xhr.send(formData)
+            xhr.send(file)
           })
 
           completed++

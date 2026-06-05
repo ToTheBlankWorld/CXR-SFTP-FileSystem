@@ -112,10 +112,6 @@ export function useFileUpload(options: FileUploadOptions = {}) {
     file: FileWithPreview,
     index: number
   ): Promise<UploadResponse> => {
-    const formData = new FormData()
-    formData.append('file', file)
-    if (options.path) formData.append('path', options.path)
-
     const xhr = new XMLHttpRequest()
     return await new Promise<UploadResponse>((resolve, reject) => {
       xhr.upload.addEventListener('progress', (event) => {
@@ -139,7 +135,15 @@ export function useFileUpload(options: FileUploadOptions = {}) {
       })
 
       xhr.open('POST', '/api/files')
-      xhr.send(formData)
+
+      // Send raw file stream with metadata headers
+      xhr.setRequestHeader('x-upload-type', 'raw')
+      xhr.setRequestHeader('x-file-name', encodeURIComponent(file.name))
+      if (options.path) {
+        xhr.setRequestHeader('x-target-path', encodeURIComponent(options.path))
+      }
+
+      xhr.send(file)
     })
   }
 
