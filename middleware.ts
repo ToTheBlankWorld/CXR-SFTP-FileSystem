@@ -12,6 +12,10 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   console.log(`[Middleware] Path: ${pathname}`)
 
+  if (pathname === '/api/files') {
+    return NextResponse.next()
+  }
+
   const canonicalMatch = pathname.match(CANONICAL_URL_PATTERN)
   if (canonicalMatch) {
     const [_, userUrlId, filename, suffix] = canonicalMatch
@@ -70,5 +74,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!_next/static|_next/image|api/files$|favicon.ico).*)'],
 }

@@ -704,6 +704,64 @@ export default function SettingsPage() {
                     </div>
                   )}
 
+                  {session?.user?.role === 'OWNER' && (
+                    <>
+                      <div className="space-y-2 mt-4">
+                        <Label>Max File Size Limit (MB)</Label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min="1"
+                            placeholder="500"
+                            value={
+                              workingConfig.settings.general.maxFileSize !== undefined
+                                ? Math.round(workingConfig.settings.general.maxFileSize / (1024 * 1024))
+                                : 500
+                            }
+                            onChange={(e) => {
+                              const mb = parseInt(e.target.value) || 0
+                              handleSettingChange('general', {
+                                maxFileSize: mb * 1024 * 1024,
+                              })
+                            }}
+                            className={getFieldClasses('general', ['maxFileSize'])}
+                          />
+                          {isFieldChanged('general', ['maxFileSize']) && <ChangeIndicator />}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Set the maximum allowed single file size limit for uploads in Megabytes (MB).
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Max Folder/Batch Upload Size Limit (MB)</Label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min="1"
+                            placeholder="1000"
+                            value={
+                              workingConfig.settings.general.maxFolderSize !== undefined
+                                ? Math.round(workingConfig.settings.general.maxFolderSize / (1024 * 1024))
+                                : 1000
+                            }
+                            onChange={(e) => {
+                              const mb = parseInt(e.target.value) || 0
+                              handleSettingChange('general', {
+                                maxFolderSize: mb * 1024 * 1024,
+                              })
+                            }}
+                            className={getFieldClasses('general', ['maxFolderSize'])}
+                          />
+                          {isFieldChanged('general', ['maxFolderSize']) && <ChangeIndicator />}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Set the maximum allowed cumulative size limit for all files in a folder/batch upload in Megabytes (MB).
+                        </p>
+                      </div>
+                    </>
+                  )}
+
                 </CardContent>
               </Card>
 

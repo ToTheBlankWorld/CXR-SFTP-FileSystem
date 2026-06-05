@@ -10,24 +10,28 @@ import { cn } from '@/lib/utils'
 
 import { useFileUpload } from '@/hooks/use-file-upload'
 import { useToast } from '@/hooks/use-toast'
+import { useSession } from 'next-auth/react'
 
 interface GlobalDropZoneProps {
-  maxSize: number
+  maxFileSize: number
+  maxFolderSize: number
 }
 
-export function GlobalDropZone({ maxSize }: GlobalDropZoneProps) {
+export function GlobalDropZone({ maxFileSize, maxFolderSize }: GlobalDropZoneProps) {
   const router = useRouter()
   const { toast } = useToast()
+  const { data: session } = useSession()
   const [isDragging, setIsDragging] = useState(false)
   const [_dragCounter, setDragCounter] = useState(0)
   const [shouldUpload, setShouldUpload] = useState(false)
   const { onDrop, uploadFiles, files, isUploading } = useFileUpload({
-    maxSize,
     onUploadComplete: () => {
       router.refresh()
       setShouldUpload(false)
     },
   })
+
+  const isAdminOrOwner = session?.user?.role === 'ADMIN' || session?.user?.role === 'OWNER'
 
   const handleDragEnter = useCallback((e: DragEvent) => {
     e.preventDefault()
@@ -82,23 +86,40 @@ export function GlobalDropZone({ maxSize }: GlobalDropZoneProps) {
       const droppedFiles = Array.from(e.dataTransfer?.files || [])
       if (droppedFiles.length === 0) return
 
+      if (isAdminOrOwner) {
+        onDrop(droppedFiles)
+        setShouldUpload(true)
+        return
+      }
+
       const validFiles: File[] = []
       const oversizedFiles: File[] = []
+      let totalSize = 0
 
       droppedFiles.forEach((file) => {
-        if (file.size > maxSize) {
+        if (file.size > maxFileSize) {
           oversizedFiles.push(file)
         } else {
           validFiles.push(file)
+          totalSize += file.size
         }
       })
 
       if (oversizedFiles.length > 0) {
         toast({
           title: 'Files too large',
-          description: `${oversizedFiles.length} file(s) exceed the maximum size limit`,
+          description: `${oversizedFiles.length} file(s) exceed the maximum file size limit of ${Math.round(maxFileSize / 1024 / 1024)}MB`,
           variant: 'destructive',
         })
+      }
+
+      if (totalSize > maxFolderSize) {
+        toast({
+          title: 'Batch size too large',
+          description: `Total size of files (${Math.round(totalSize / 1024 / 1024)}MB) exceeds the maximum folder size limit of ${Math.round(maxFolderSize / 1024 / 1024)}MB`,
+          variant: 'destructive',
+        })
+        return
       }
 
       if (validFiles.length > 0) {
@@ -106,7 +127,7 @@ export function GlobalDropZone({ maxSize }: GlobalDropZoneProps) {
         setShouldUpload(true)
       }
     },
-    [maxSize, onDrop, toast]
+    [maxFileSize, maxFolderSize, onDrop, toast, isAdminOrOwner]
   )
 
   useEffect(() => {

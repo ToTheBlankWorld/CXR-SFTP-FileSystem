@@ -92,6 +92,8 @@ export async function POST(req: Request) {
             rootPath: '/',
           },
           maxUploadSize: 500 * 1024 * 1024,
+          maxFileSize: 500 * 1024 * 1024,
+          maxFolderSize: 1024 * 1024 * 1024,
           credits: {
             showFooter: true,
           },

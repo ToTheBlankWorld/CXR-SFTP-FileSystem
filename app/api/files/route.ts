@@ -246,9 +246,9 @@ export async function POST(req: Request) {
 
     if (auth.user?.role !== 'ADMIN' && auth.user?.role !== 'OWNER') {
       const config = await (await import('@/lib/config')).getConfig()
-      const maxSize = config.settings.general.maxUploadSize
-      if (uploadedFile.size > maxSize) {
-        return apiError(`File exceeds the maximum upload size of ${Math.round(maxSize / 1024 / 1024)}MB`, HTTP_STATUS.PAYLOAD_TOO_LARGE)
+      const maxFileSize = config.settings.general.maxFileSize
+      if (uploadedFile.size > maxFileSize) {
+        return apiError(`File exceeds the maximum file size limit of ${Math.round(maxFileSize / 1024 / 1024)}MB`, HTTP_STATUS.PAYLOAD_TOO_LARGE)
       }
     }
 

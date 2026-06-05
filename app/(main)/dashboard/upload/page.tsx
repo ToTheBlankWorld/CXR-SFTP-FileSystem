@@ -3,8 +3,8 @@ import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 
 import { UploadForm } from '@/components/file/upload-form'
-
 import { authOptions } from '@/lib/auth'
+import { getConfig } from '@/lib/config'
 
 export default async function UploadPage() {
   const session = await getServerSession(authOptions)
@@ -12,6 +12,10 @@ export default async function UploadPage() {
   if (!session?.user) {
     redirect('/auth/login')
   }
+
+  const config = await getConfig()
+  const maxFileSize = config.settings.general.maxFileSize
+  const maxFolderSize = config.settings.general.maxFolderSize
 
   return (
     <div className="container space-y-6">
@@ -28,7 +32,7 @@ export default async function UploadPage() {
       <div className="relative rounded-2xl bg-white/10 dark:bg-black/10 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-lg shadow-black/5 dark:shadow-black/20">
         <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/10 via-transparent to-black/5 dark:from-white/5 dark:via-transparent dark:to-black/10" />
         <div className="relative p-8">
-          <UploadForm />
+          <UploadForm maxFileSize={maxFileSize} maxFolderSize={maxFolderSize} />
         </div>
       </div>
     </div>

@@ -31,6 +31,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
+import { useSession } from 'next-auth/react'
+
 import { useToast } from '@/hooks/use-toast'
 
 interface TreeNode {
@@ -115,8 +117,14 @@ function formatSize(bytes: number): string {
   return (bytes / 1024 / 1024).toFixed(1) + ' MB'
 }
 
-export function UploadForm() {
+interface UploadFormProps {
+  maxFileSize: number
+  maxFolderSize: number
+}
+
+export function UploadForm({ maxFileSize, maxFolderSize }: UploadFormProps) {
   const { toast } = useToast()
+  const { data: session } = useSession()
   const searchParams = useSearchParams()
   const uploadPath = searchParams.get('path') || '/'
 
@@ -144,9 +152,42 @@ export function UploadForm() {
     [tree, deselectedPaths]
   )
 
+  const isAdminOrOwner = session?.user?.role === 'ADMIN' || session?.user?.role === 'OWNER'
+
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    setFiles((prev) => [...prev, ...acceptedFiles])
-  }, [])
+    if (isAdminOrOwner) {
+      setFiles((prev) => [...prev, ...acceptedFiles])
+      return
+    }
+
+    const oversizedFiles = acceptedFiles.filter((file) => file.size > maxFileSize)
+    if (oversizedFiles.length > 0) {
+      toast({
+        title: 'Files too large',
+        description: `${oversizedFiles.length} file(s) exceed the maximum file size limit of ${Math.round(maxFileSize / 1024 / 1024)}MB`,
+        variant: 'destructive',
+      })
+    }
+
+    const validFiles = acceptedFiles.filter((file) => file.size <= maxFileSize)
+    if (validFiles.length === 0) return
+
+    setFiles((prev) => {
+      const currentTotalSize = prev.reduce((sum, f) => sum + f.size, 0)
+      const newTotalSize = currentTotalSize + validFiles.reduce((sum, f) => sum + f.size, 0)
+
+      if (newTotalSize > maxFolderSize) {
+        toast({
+          title: 'Folder limit exceeded',
+          description: `Adding these files would exceed the total folder upload limit of ${Math.round(maxFolderSize / 1024 / 1024)}MB (currently selected: ${Math.round(currentTotalSize / 1024 / 1024)}MB)`,
+          variant: 'destructive',
+        })
+        return prev
+      }
+
+      return [...prev, ...validFiles]
+    })
+  }, [maxFileSize, maxFolderSize, toast, isAdminOrOwner])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -160,13 +201,64 @@ export function UploadForm() {
   const onFolderFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || [])
     if (selectedFiles.length === 0) return
+
+    if (isAdminOrOwner) {
+      setFiles((prev) => [...prev, ...selectedFiles])
+      setExpandedPaths((prev) => {
+        const next = new Set(prev)
+        for (const f of selectedFiles) {
+          const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath || ''
+          const firstSlash = rel.indexOf('/')
+          if (firstSlash > 0) next.add(rel.substring(0, firstSlash))
+        }
+        return next
+      })
+      e.target.value = ''
+      return
+    }
+
+    const oversizedFiles = selectedFiles.filter((file) => file.size > maxFileSize)
+    if (oversizedFiles.length > 0) {
+      toast({
+        title: 'Files too large',
+        description: `${oversizedFiles.length} file(s) in folder exceed the maximum file size limit of ${Math.round(maxFileSize / 1024 / 1024)}MB`,
+        variant: 'destructive',
+      })
+    }
+
+    const validFiles = selectedFiles.filter((file) => file.size <= maxFileSize)
+    if (validFiles.length === 0) {
+      e.target.value = ''
+      return
+    }
+
+    let limitExceeded = false
+
     setFiles((prev) => {
-      const newFiles = [...prev, ...selectedFiles]
-      return newFiles
+      const currentTotalSize = prev.reduce((sum, f) => sum + f.size, 0)
+      const newTotalSize = currentTotalSize + validFiles.reduce((sum, f) => sum + f.size, 0)
+
+      if (newTotalSize > maxFolderSize) {
+        limitExceeded = true
+        return prev
+      }
+
+      return [...prev, ...validFiles]
     })
+
+    if (limitExceeded) {
+      toast({
+        title: 'Folder limit exceeded',
+        description: `Adding these folder files would exceed the folder upload limit of ${Math.round(maxFolderSize / 1024 / 1024)}MB`,
+        variant: 'destructive',
+      })
+      e.target.value = ''
+      return
+    }
+
     setExpandedPaths((prev) => {
       const next = new Set(prev)
-      for (const f of selectedFiles) {
+      for (const f of validFiles) {
         const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath || ''
         const firstSlash = rel.indexOf('/')
         if (firstSlash > 0) next.add(rel.substring(0, firstSlash))

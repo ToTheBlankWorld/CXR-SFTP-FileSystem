@@ -8,12 +8,14 @@ export default async function DashboardLayout({
   children: React.ReactNode
 }) {
   const config = await getConfig()
-  const maxSizeBytes = 100 * 1024 * 1024
+  const maxFileSize = config.settings.general.maxFileSize
+  const maxFolderSize = config.settings.general.maxFolderSize
 
   return (
     <DashboardWrapper
       showFooter={config.settings.general.credits.showFooter}
-      maxUploadSize={maxSizeBytes}
+      maxFileSize={maxFileSize}
+      maxFolderSize={maxFolderSize}
     >
       {children}
     </DashboardWrapper>
