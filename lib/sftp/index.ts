@@ -68,6 +68,40 @@ async function withClient<T>(fn: (sftp: Client) => Promise<T>): Promise<T> {
   }
 }
 
+async function connectNew(): Promise<Client> {
+  const config = getSftpConfig()
+  const c = new Client()
+  const connectConfig: {
+    host: string; port: number; username: string; password?: string;
+    privateKey?: string; readyTimeout?: number;
+  } = {
+    host: config.host,
+    port: config.port,
+    username: config.username,
+    readyTimeout: 10000,
+  }
+  if (config.privateKey) {
+    connectConfig.privateKey = config.privateKey
+  } else if (config.password) {
+    connectConfig.password = config.password
+  }
+  await c.connect(connectConfig)
+  return c
+}
+
+async function withNewClient<T>(fn: (sftp: Client) => Promise<T>): Promise<T> {
+  const sftp = await connectNew()
+  try {
+    return await fn(sftp)
+  } finally {
+    try {
+      await sftp.end()
+    } catch {
+      // ignore
+    }
+  }
+}
+
 function resolvePath(...segments: string[]): string {
   const root = getSftpConfig().rootPath.replace(/\/$/, '')
   const joined = segments.join('/').replace(/\/+/g, '/')
@@ -126,7 +160,7 @@ export async function uploadFile(
   fileData: Buffer | Readable,
   remotePath: string
 ): Promise<void> {
-  return withClient(async (sftp) => {
+  return withNewClient(async (sftp) => {
     const fullPath = resolvePath(remotePath)
     const parentDir = fullPath.substring(0, fullPath.lastIndexOf('/'))
     if (parentDir) await ensureDir(sftp, parentDir)
@@ -136,7 +170,7 @@ export async function uploadFile(
 }
 
 export async function downloadFile(remotePath: string): Promise<Buffer> {
-  return withClient(async (sftp) => {
+  return withNewClient(async (sftp) => {
     const fullPath = resolvePath(remotePath)
     logger.debug('Downloading file via SFTP', { fullPath })
 
@@ -155,13 +189,20 @@ export async function getFileStream(
   remotePath: string,
   range?: { start?: number; end?: number }
 ): Promise<Readable> {
-  const sftp = await getClient()
+  const sftp = await connectNew()
   const fullPath = resolvePath(remotePath)
 
   const readStream = sftp.createReadStream(fullPath, {
     start: range?.start,
     end: range?.end,
   })
+
+  const cleanup = () => {
+    sftp.end().catch(() => {})
+  }
+  readStream.on('close', cleanup)
+  readStream.on('end', cleanup)
+  readStream.on('error', cleanup)
 
   return readStream as unknown as Readable
 }
