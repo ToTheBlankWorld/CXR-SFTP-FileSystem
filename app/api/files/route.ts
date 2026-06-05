@@ -9,6 +9,11 @@ import { checkFolderAccess } from '@/lib/folders/access'
 import { hash } from 'bcryptjs'
 import { FileVisibility } from '@prisma/client'
 import { normalizePath } from '@/lib/utils'
+import { createWriteStream, existsSync } from 'fs'
+import { unlink } from 'fs/promises'
+import { join } from 'path'
+import os from 'os'
+import { pipeline } from 'stream/promises'
 
 const logger = loggers.files
 
@@ -232,7 +237,8 @@ export async function POST(req: Request) {
 
     const uploadType = req.headers.get('x-upload-type')
 
-    let fileStream: Readable
+    let fileStream: Readable | null = null
+    let tempFilePath: string | null = null
     let fileName: string
     let fileSize: number
     let fileType: string
@@ -260,7 +266,20 @@ export async function POST(req: Request) {
         return apiError('No file body provided', HTTP_STATUS.BAD_REQUEST)
       }
 
-      fileStream = Readable.fromWeb(req.body as unknown as import('stream/web').ReadableStream)
+      // Stream incoming raw request body directly to a local temp file to avoid in-memory buffering bottleneck
+      tempFilePath = join(os.tmpdir(), `upload-${Date.now()}-${Math.random().toString(36).substring(2)}.tmp`)
+      const fileWriteStream = createWriteStream(tempFilePath)
+      const nodeStream = Readable.fromWeb(req.body as unknown as import('stream/web').ReadableStream)
+
+      try {
+        await pipeline(nodeStream, fileWriteStream)
+      } catch (err) {
+        logger.error('Failed to write temp file', err as Error)
+        if (existsSync(tempFilePath)) {
+          await unlink(tempFilePath).catch(() => {})
+        }
+        return apiError('Upload streaming failed', HTTP_STATUS.INTERNAL_SERVER_ERROR)
+      }
     } else {
       const formData = await req.formData()
       const uploadedFile = formData.get('file') as File
@@ -283,6 +302,9 @@ export async function POST(req: Request) {
     }
 
     if (!fileName) {
+      if (tempFilePath && existsSync(tempFilePath)) {
+        await unlink(tempFilePath).catch(() => {})
+      }
       return apiError('No file name provided', HTTP_STATUS.BAD_REQUEST)
     }
 
@@ -290,6 +312,9 @@ export async function POST(req: Request) {
       const config = await (await import('@/lib/config')).getConfig()
       const maxFileSize = config.settings.general.maxFileSize
       if (fileSize > maxFileSize) {
+        if (tempFilePath && existsSync(tempFilePath)) {
+          await unlink(tempFilePath).catch(() => {})
+        }
         return apiError(`File exceeds the maximum file size limit of ${Math.round(maxFileSize / 1024 / 1024)}MB`, HTTP_STATUS.PAYLOAD_TOO_LARGE)
       }
     }
@@ -308,6 +333,9 @@ export async function POST(req: Request) {
 
     const accessResult = await checkFolderAccess(targetPath, auth, providedPasswords)
     if (!accessResult.allowed) {
+      if (tempFilePath && existsSync(tempFilePath)) {
+        await unlink(tempFilePath).catch(() => {})
+      }
       return apiError("You don't have permission to upload files inside this directory", HTTP_STATUS.FORBIDDEN)
     }
 
@@ -316,7 +344,17 @@ export async function POST(req: Request) {
 
     logger.info('upload targetPath=' + targetPath + ' subpath=' + subpath + ' fullpath=' + fullpath + ' fileName=' + fileName + ' remotePath=' + remotePath)
 
-    await uploadFile(fileStream, remotePath)
+    try {
+      if (tempFilePath) {
+        await uploadFile(tempFilePath, remotePath)
+      } else if (fileStream) {
+        await uploadFile(fileStream, remotePath)
+      }
+    } finally {
+      if (tempFilePath && existsSync(tempFilePath)) {
+        await unlink(tempFilePath).catch(() => {})
+      }
+    }
 
     let hashedPassword = null
     if (password) {

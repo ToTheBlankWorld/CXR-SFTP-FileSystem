@@ -157,14 +157,16 @@ async function ensureDir(sftp: Client, dir: string): Promise<void> {
 }
 
 export async function uploadFile(
-  fileData: Buffer | Readable,
+  fileData: Buffer | Readable | string,
   remotePath: string
 ): Promise<void> {
   return withNewClient(async (sftp) => {
     const fullPath = resolvePath(remotePath)
     const parentDir = fullPath.substring(0, fullPath.lastIndexOf('/'))
     if (parentDir) await ensureDir(sftp, parentDir)
-    const sourceStream = fileData instanceof Buffer ? Readable.from(fileData) : fileData
+    const sourceStream = typeof fileData === 'string'
+      ? fileData
+      : (fileData instanceof Buffer ? Readable.from(fileData) : fileData)
     await sftp.put(sourceStream, fullPath)
   })
 }
