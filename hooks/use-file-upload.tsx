@@ -33,6 +33,14 @@ export function useFileUpload(options: FileUploadOptions = {}) {
   const router = useRouter()
   const { toast } = useToast()
   const progressToastRef = useRef<ReturnType<typeof toast> | null>(null)
+  const activeXhrRef = useRef<XMLHttpRequest | null>(null)
+
+  const cancelUpload = useCallback(() => {
+    if (activeXhrRef.current) {
+      activeXhrRef.current.abort()
+      activeXhrRef.current = null
+    }
+  }, [])
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setFiles((prev) => [
@@ -94,15 +102,23 @@ export function useFileUpload(options: FileUploadOptions = {}) {
     const file = files[index]
     if (file && progressToastRef.current) {
       const progress = Math.min(100, Math.round((uploaded / total) * 100))
+      const isProcessing = progress === 100
       progressToastRef.current.update({
         id: progressToastRef.current.id,
-        title: 'Uploading...',
+        title: isProcessing ? 'Processing...' : 'Uploading...',
         description: (
           <div className="space-y-2">
             <p className="text-sm">{file.name}</p>
-            <Progress value={progress} className="h-2" />
-            <p className="text-xs text-muted-foreground">{progress}%</p>
+            <Progress value={progress} className={isProcessing ? "h-2 animate-pulse" : "h-2"} />
+            <p className="text-xs text-muted-foreground">
+              {isProcessing ? 'Saving to SFTP server...' : `${progress}%`}
+            </p>
           </div>
+        ),
+        action: (
+          <ToastAction altText="Cancel upload" onClick={cancelUpload}>
+            Cancel
+          </ToastAction>
         ),
       })
     }
@@ -113,6 +129,7 @@ export function useFileUpload(options: FileUploadOptions = {}) {
     index: number
   ): Promise<UploadResponse> => {
     const xhr = new XMLHttpRequest()
+    activeXhrRef.current = xhr
     return await new Promise<UploadResponse>((resolve, reject) => {
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable) {
@@ -132,6 +149,10 @@ export function useFileUpload(options: FileUploadOptions = {}) {
 
       xhr.addEventListener('error', () => {
         reject(new Error('Network error occurred'))
+      })
+
+      xhr.addEventListener('abort', () => {
+        reject(new Error('Upload cancelled'))
       })
 
       xhr.open('POST', '/api/files')
@@ -165,6 +186,11 @@ export function useFileUpload(options: FileUploadOptions = {}) {
               <Progress value={0} className="h-2" />
               <p className="text-xs text-muted-foreground">0%</p>
             </div>
+          ),
+          action: (
+            <ToastAction altText="Cancel upload" onClick={cancelUpload}>
+              Cancel
+            </ToastAction>
           ),
           duration: Infinity,
         })
@@ -201,17 +227,30 @@ export function useFileUpload(options: FileUploadOptions = {}) {
       router.refresh()
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Upload failed'
-      toast({
-        title: 'Upload Failed',
-        description: errorMessage,
-        variant: 'destructive',
-      })
+      
+      // Clean up toast
+      progressToastRef.current?.dismiss()
+      progressToastRef.current = null
+
+      if (errorMessage === 'Upload cancelled') {
+        toast({
+          title: 'Upload Cancelled',
+          description: 'The file upload was cancelled.',
+        })
+      } else {
+        toast({
+          title: 'Upload Failed',
+          description: errorMessage,
+          variant: 'destructive',
+        })
+      }
 
       if (options.onUploadError) {
         options.onUploadError(errorMessage)
       }
     } finally {
       setIsUploading(false)
+      activeXhrRef.current = null
     }
   }
 
@@ -222,5 +261,6 @@ export function useFileUpload(options: FileUploadOptions = {}) {
     removeFile,
     clearFiles,
     uploadFiles,
+    cancelUpload,
   }
 }

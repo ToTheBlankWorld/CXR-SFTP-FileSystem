@@ -133,7 +133,10 @@ export function UploadForm({ maxFileSize, maxFolderSize }: UploadFormProps) {
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState<Record<string, number>>({})
-  const [overallProgress, setOverallProgress] = useState<{ uploaded: number; total: number; failed: number } | null>(null)
+  const [fileStatuses, setFileStatuses] = useState<Record<string, 'idle' | 'uploading' | 'processing' | 'completed' | 'failed' | 'cancelled'>>({})
+  const fileStatusesRef = useRef<Record<string, 'idle' | 'uploading' | 'processing' | 'completed' | 'failed' | 'cancelled'>>({})
+  const activeXhrsRef = useRef<Record<string, XMLHttpRequest>>({})
+  const [overallProgress, setOverallProgress] = useState<{ uploaded: number; total: number; failed: number; cancelled: number } | null>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
 
   // Advanced Options States
@@ -153,6 +156,37 @@ export function UploadForm({ maxFileSize, maxFolderSize }: UploadFormProps) {
   )
 
   const isAdminOrOwner = session?.user?.role === 'ADMIN' || session?.user?.role === 'OWNER'
+
+  const updateFileStatus = useCallback((name: string, status: 'idle' | 'uploading' | 'processing' | 'completed' | 'failed' | 'cancelled') => {
+    fileStatusesRef.current[name] = status
+    setFileStatuses((prev) => ({ ...prev, [name]: status }))
+  }, [])
+
+  const cancelUpload = useCallback((displayName: string) => {
+    updateFileStatus(displayName, 'cancelled')
+    const xhr = activeXhrsRef.current[displayName]
+    if (xhr) {
+      xhr.abort()
+      delete activeXhrsRef.current[displayName]
+    }
+  }, [updateFileStatus])
+
+  const cancelAllUploads = useCallback(() => {
+    // Cancel all active uploads
+    Object.keys(activeXhrsRef.current).forEach((displayName) => {
+      cancelUpload(displayName)
+    })
+    // Also cancel any files in the tree that are still 'idle'
+    if (tree) {
+      const targetFiles = getSelectedFiles(tree, deselectedPaths)
+      targetFiles.forEach((file) => {
+        const displayName = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
+        if (fileStatusesRef.current[displayName] === 'idle') {
+          updateFileStatus(displayName, 'cancelled')
+        }
+      })
+    }
+  }, [tree, deselectedPaths, cancelUpload, updateFileStatus])
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (isAdminOrOwner) {
@@ -291,14 +325,25 @@ export function UploadForm({ maxFileSize, maxFolderSize }: UploadFormProps) {
     const targetFiles = getSelectedFiles(tree, deselectedPaths)
     if (targetFiles.length === 0) return
 
+    const isFileCancelled = (name: string) => fileStatusesRef.current[name] === 'cancelled'
+
     setUploading(true)
-    setOverallProgress({ uploaded: 0, total: targetFiles.length, failed: 0 })
+    const initialStatuses: Record<string, 'idle' | 'uploading' | 'processing' | 'completed' | 'failed' | 'cancelled'> = {}
+    targetFiles.forEach((file) => {
+      const displayName = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
+      initialStatuses[displayName] = 'idle'
+    })
+    setFileStatuses(initialStatuses)
+    fileStatusesRef.current = initialStatuses
+    setProgress({})
+    setOverallProgress({ uploaded: 0, total: targetFiles.length, failed: 0, cancelled: 0 })
 
     const CONCURRENCY = 5
     const pending = [...targetFiles]
     let index = 0
     let completed = 0
     let failed = 0
+    let cancelled = 0
 
     const uploadOne = async (): Promise<void> => {
       while (true) {
@@ -307,29 +352,59 @@ export function UploadForm({ maxFileSize, maxFolderSize }: UploadFormProps) {
         const file = pending[i]
         const displayName = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
 
+        if (isFileCancelled(displayName)) {
+          cancelled++
+          setOverallProgress({ uploaded: completed, total: targetFiles.length, failed, cancelled })
+          continue
+        }
+
+        updateFileStatus(displayName, 'uploading')
+
         try {
           const relPath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || ''
           const dirPart = relPath.substring(0, relPath.lastIndexOf('/'))
 
           await new Promise<void>((resolve, reject) => {
             const xhr = new XMLHttpRequest()
+            activeXhrsRef.current[displayName] = xhr
 
             xhr.upload.addEventListener('progress', (e) => {
+              if (isFileCancelled(displayName)) {
+                return
+              }
               if (e.lengthComputable) {
                 const pct = Math.round((e.loaded / e.total) * 100)
                 setProgress((prev) => ({ ...prev, [displayName]: pct }))
+                if (pct === 100) {
+                  updateFileStatus(displayName, 'processing')
+                }
               }
             })
 
             xhr.addEventListener('load', () => {
+              if (isFileCancelled(displayName)) {
+                reject(new Error('Cancelled'))
+                return
+              }
               if (xhr.status >= 200 && xhr.status < 300) {
+                updateFileStatus(displayName, 'completed')
                 resolve()
               } else {
                 reject(new Error(xhr.statusText))
               }
             })
 
-            xhr.addEventListener('error', () => reject(new Error('Network error')))
+            xhr.addEventListener('error', () => {
+              if (isFileCancelled(displayName)) {
+                reject(new Error('Cancelled'))
+              } else {
+                reject(new Error('Network error'))
+              }
+            })
+
+            xhr.addEventListener('abort', () => {
+              reject(new Error('Cancelled'))
+            })
 
             xhr.open('POST', '/api/files')
 
@@ -363,12 +438,26 @@ export function UploadForm({ maxFileSize, maxFolderSize }: UploadFormProps) {
             xhr.send(file)
           })
 
+          if (isFileCancelled(displayName)) {
+            cancelled++
+            setOverallProgress({ uploaded: completed, total: targetFiles.length, failed, cancelled })
+            continue
+          }
+
           completed++
         } catch {
+          if (isFileCancelled(displayName)) {
+            cancelled++
+            setOverallProgress({ uploaded: completed, total: targetFiles.length, failed, cancelled })
+            continue
+          }
+          updateFileStatus(displayName, 'failed')
           failed++
+        } finally {
+          delete activeXhrsRef.current[displayName]
         }
 
-        setOverallProgress({ uploaded: completed, total: targetFiles.length, failed })
+        setOverallProgress({ uploaded: completed, total: targetFiles.length, failed, cancelled })
       }
     }
 
@@ -378,15 +467,24 @@ export function UploadForm({ maxFileSize, maxFolderSize }: UploadFormProps) {
     setUploading(false)
     setFiles([])
     setProgress({})
+    setFileStatuses({})
+    fileStatusesRef.current = {}
+    activeXhrsRef.current = {}
     setOverallProgress(null)
     setDeselectedPaths(new Set())
     setExpandedPaths(new Set())
 
-    if (failed > 0) {
+    const toastDescription = [
+      `${completed} uploaded`,
+      failed > 0 ? `${failed} failed` : null,
+      cancelled > 0 ? `${cancelled} cancelled` : null
+    ].filter(Boolean).join(', ')
+
+    if (failed > 0 || cancelled > 0) {
       toast({
-        title: 'Upload complete with errors',
-        description: `${completed} uploaded, ${failed} failed`,
-        variant: 'destructive',
+        title: 'Upload finished',
+        description: toastDescription,
+        variant: failed > 0 ? 'destructive' : 'default',
       })
     } else {
       toast({
@@ -400,26 +498,65 @@ export function UploadForm({ maxFileSize, maxFolderSize }: UploadFormProps) {
     if (node.type === 'file') {
       const displayName = node.path
       const pct = progress[displayName]
-      const isDone = pct === 100
+      const status = fileStatuses[displayName] || 'idle'
       return (
         <div
           key={node.path}
-          className="flex items-center gap-2 py-1.5 px-2 rounded"
+          className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/30"
           style={{ paddingLeft: `${depth * 20 + 8}px` }}
         >
-          <div className="w-4 shrink-0" />
-          {uploading && isDone ? (
-            <span className="text-green-500 text-xs font-bold w-4 text-center shrink-0">✓</span>
-          ) : (
-            <FileIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-          )}
+          <div className="w-4 shrink-0 flex items-center justify-center">
+            {status === 'completed' ? (
+              <span className="text-green-500 text-xs font-bold text-center">✓</span>
+            ) : status === 'failed' ? (
+              <span className="text-destructive text-xs font-bold text-center">✗</span>
+            ) : status === 'cancelled' ? (
+              <span className="text-muted-foreground text-xs font-bold text-center">⊘</span>
+            ) : status === 'processing' ? (
+              <div className="h-3 w-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <FileIcon className="h-4 w-4 text-muted-foreground" />
+            )}
+          </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-sm truncate">{node.name}</span>
-              <span className="text-xs text-muted-foreground shrink-0">{formatSize(node.totalSize)}</span>
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-sm truncate">{node.name}</span>
+                <span className="text-xs text-muted-foreground shrink-0">{formatSize(node.totalSize)}</span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {status === 'uploading' && pct !== undefined && (
+                  <span className="text-xs text-muted-foreground">{pct}%</span>
+                )}
+                {status === 'processing' && (
+                  <span className="text-xs text-primary animate-pulse font-medium">Processing (Saving to SFTP)...</span>
+                )}
+                {status === 'cancelled' && (
+                  <span className="text-xs text-muted-foreground">Cancelled</span>
+                )}
+                {status === 'failed' && (
+                  <span className="text-xs text-destructive">Failed</span>
+                )}
+                {(status === 'uploading' || status === 'processing' || (uploading && status === 'idle')) && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      cancelUpload(displayName)
+                    }}
+                    className="h-6 px-2 text-[10px] text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0"
+                  >
+                    Cancel
+                  </Button>
+                )}
+              </div>
             </div>
-            {pct !== undefined && pct < 100 && (
-              <Progress value={pct} className="h-1 mt-0.5" />
+            {status === 'uploading' && pct !== undefined && (
+              <Progress value={pct} className="h-1 mt-1" />
+            )}
+            {status === 'processing' && (
+              <Progress value={100} className="h-1 mt-1 animate-pulse" />
             )}
           </div>
         </div>
@@ -652,19 +789,24 @@ export function UploadForm({ maxFileSize, maxFolderSize }: UploadFormProps) {
             <div className="space-y-1">
               <div className="flex justify-between text-sm">
                 <span>
-                  {overallProgress.uploaded + overallProgress.failed} / {overallProgress.total} files
+                  {overallProgress.uploaded + overallProgress.failed + overallProgress.cancelled} / {overallProgress.total} files
                   {overallProgress.failed > 0 && (
                     <span className="text-destructive ml-1">
                       ({overallProgress.failed} failed)
                     </span>
                   )}
+                  {overallProgress.cancelled > 0 && (
+                    <span className="text-muted-foreground ml-1">
+                      ({overallProgress.cancelled} cancelled)
+                    </span>
+                  )}
                 </span>
                 <span>
-                  {Math.round(((overallProgress.uploaded + overallProgress.failed) / overallProgress.total) * 100)}%
+                  {Math.round(((overallProgress.uploaded + overallProgress.failed + overallProgress.cancelled) / overallProgress.total) * 100)}%
                 </span>
               </div>
               <Progress
-                value={((overallProgress.uploaded + overallProgress.failed) / overallProgress.total) * 100}
+                value={((overallProgress.uploaded + overallProgress.failed + overallProgress.cancelled) / overallProgress.total) * 100}
                 className="h-2"
               />
             </div>
@@ -684,9 +826,13 @@ export function UploadForm({ maxFileSize, maxFolderSize }: UploadFormProps) {
               Upload {selectedCount} file{selectedCount > 1 ? 's' : ''}
             </Button>
           ) : (
-            <div className="text-center text-sm text-muted-foreground py-2">
-              Uploading...
-            </div>
+            <Button
+              variant="destructive"
+              onClick={cancelAllUploads}
+              className="w-full"
+            >
+              Cancel All Uploads
+            </Button>
           )}
         </Card>
       )}
